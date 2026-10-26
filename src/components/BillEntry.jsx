@@ -78,47 +78,30 @@ export default function BillEntry({
   function handleKeyNavigation(e, vegId, field, rowIdx) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       if (field === 'qty') {
         const rateInput = rowRefs.current[`${vegId}-rate`];
-        if (rateInput && !rateInput.disabled) {
-          rateInput.focus();
-          rateInput.select();
+        if (rateInput && !rateInput.disabled && (!rateInput.value || rateInput.value === '0')) {
+          focusCell(rowIdx, 'rate');
         } else {
-          focusNextRowQty(rowIdx);
+          focusCell(rowIdx, 'rate');
         }
       } else if (field === 'rate' || field === 'amt') {
         focusNextRowQty(rowIdx);
       }
+    } else if (e.key === 'Tab') {
+      if (field === 'amt' && !e.shiftKey) {
+        e.preventDefault();
+        focusNextRowQty(rowIdx);
+      }
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      if (field === 'qty') {
-        const rateInput = rowRefs.current[`${vegId}-rate`];
-        if (rateInput && !rateInput.disabled) {
-          rateInput.focus();
-          rateInput.select();
-        }
-      } else if (field === 'rate') {
-        const amtInput = rowRefs.current[`${vegId}-amt`];
-        if (amtInput && !amtInput.disabled) {
-          amtInput.focus();
-          amtInput.select();
-        }
-      }
+      if (field === 'qty') focusCell(rowIdx, 'rate');
+      else if (field === 'rate') focusCell(rowIdx, 'amt');
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      if (field === 'amt') {
-        const rateInput = rowRefs.current[`${vegId}-rate`];
-        if (rateInput && !rateInput.disabled) {
-          rateInput.focus();
-          rateInput.select();
-        }
-      } else if (field === 'rate') {
-        const qtyInput = rowRefs.current[`${vegId}-qty`];
-        if (qtyInput) {
-          qtyInput.focus();
-          qtyInput.select();
-        }
-      }
+      if (field === 'amt') focusCell(rowIdx, 'rate');
+      else if (field === 'rate') focusCell(rowIdx, 'qty');
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       focusCell(rowIdx + 1, field);
@@ -132,19 +115,20 @@ export default function BillEntry({
     focusCell(currentRowIdx + 1, 'qty');
   }
 
-  function focusCell(targetRowIdx, field) {
+  function focusCell(targetRowIdx, field = 'qty') {
     if (targetRowIdx < 0 || targetRowIdx >= filteredCatalog.length) return;
     const targetVeg = filteredCatalog[targetRowIdx];
-    const targetEl = rowRefs.current[`${targetVeg.id}-${field}`];
+    if (!targetVeg) return;
+
+    const targetEl = rowRefs.current[`${targetVeg.id}-${field}`] || rowRefs.current[`${targetVeg.id}-qty`];
     if (targetEl && !targetEl.disabled) {
       targetEl.focus();
-      targetEl.select();
-    } else {
-      const fallback = rowRefs.current[`${targetVeg.id}-qty`];
-      if (fallback) {
-        fallback.focus();
-        fallback.select();
-      }
+      try {
+        targetEl.select();
+      } catch (_) {}
+      try {
+        targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } catch (_) {}
     }
   }
 
@@ -390,6 +374,7 @@ export default function BillEntry({
                         <td className="py-1.5 px-1.5">
                           <select
                             value={st.mode}
+                            tabIndex={-1}
                             onChange={e => {
                               const m = e.target.value;
                               if (m === 'free') updateItem(veg.id, { mode: m, rate: '', amount: '' });
@@ -410,6 +395,7 @@ export default function BillEntry({
                             type="number"
                             step="any"
                             min="0"
+                            enterKeyHint="next"
                             placeholder={st.mode === 'per_100' ? 'Pcs' : 'Kg'}
                             value={st.weight}
                             onChange={e => updateItem(veg.id, { weight: e.target.value })}
@@ -423,6 +409,7 @@ export default function BillEntry({
                             type="number"
                             step="any"
                             min="0"
+                            enterKeyHint="next"
                             placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : 'Rate'}
                             disabled={st.mode === 'lump_sum' || st.mode === 'free'}
                             value={st.mode === 'lump_sum' || st.mode === 'free' ? '' : st.rate}
@@ -439,6 +426,7 @@ export default function BillEntry({
                             type="number"
                             step="any"
                             min="0"
+                            enterKeyHint="next"
                             placeholder={st.mode === 'free' ? 'Free' : '0'}
                             disabled={st.mode === 'free'}
                             value={st.mode === 'free' ? '' : st.amount}
