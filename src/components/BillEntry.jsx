@@ -552,14 +552,14 @@ export default function BillEntry({
 
         {/* Official Biroba Bill Sheet */}
         <div id="printableBillArea" className="bill-paper rounded-xl p-2 sm:p-5 mx-auto w-full max-w-xl">
-          <div className="devanagari flex items-center justify-between text-[8px] sm:text-xs font-semibold bill-green mb-1 px-0.5">
+          <div className="devanagari flex items-center justify-between text-[8px] sm:text-xs font-semibold bill-green mb-1.5 px-1">
             <span>|| श्री महालिंगराया प्रसन्न ||</span>
-            <span className="hidden xs:inline">|| श्री स्वामी समर्थ प्रसन्न ||</span>
+            <span>|| श्री स्वामी समर्थ प्रसन्न ||</span>
             <span>|| श्री बालाजी प्रसन्न ||</span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 border-b-2 border-emerald-800 pb-2 mb-2">
-            <div className="w-11 h-11 sm:w-20 sm:h-16 shrink-0 flex items-center justify-center overflow-hidden">
+          <div className="flex items-center gap-2.5 sm:gap-3 border-b-2 border-emerald-800 pb-2.5 mb-2.5">
+            <div className="w-12 h-12 sm:w-20 sm:h-16 shrink-0 flex items-center justify-center overflow-hidden">
               <img
                 src="/icon-192.png"
                 alt="Fresh Vegetables"
@@ -568,35 +568,35 @@ export default function BillEntry({
               />
             </div>
             <div className="flex-1 text-center min-w-0">
-              <h2 className="bill-red font-extrabold text-sm sm:text-xl tracking-tight leading-tight">
+              <h2 className="bill-red font-extrabold text-base sm:text-xl tracking-tight leading-tight">
                 BIROBA VEGETABLE SUPPLIERS
               </h2>
-              <p className="bill-green font-bold text-[8px] sm:text-[11px] tracking-tight mt-0.5 leading-tight">
+              <p className="bill-green font-bold text-[8.5px] sm:text-[11px] tracking-tight mt-0.5 leading-tight">
                 ALL KINDS OF FRESH VEGETABLE &amp; FRUITS WHOLESALE SUPPLIERS
               </p>
-              <p className="bill-green font-semibold text-[7.5px] sm:text-[10px] leading-tight">
+              <p className="bill-green font-semibold text-[8px] sm:text-[10px] leading-tight">
                 Old Bhaji Market Byculla Mumbai-400 027<span className="hidden sm:inline"> • M.: 9892406958 / 7400106277</span>
               </p>
-              <p className="bill-red font-bold text-[10px] sm:text-sm mt-0.5">
+              <p className="bill-red font-bold text-[10.5px] sm:text-sm mt-0.5">
                 Prop.: Birappa B. Nigadi
               </p>
             </div>
           </div>
 
-          <div className="text-[11px] sm:text-sm mb-2 space-y-1 px-0.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-baseline gap-1">
-                <span className="bill-green font-bold">No.</span>
-                <span className="font-bold text-slate-900 border-b border-emerald-700 min-w-[50px] sm:min-w-[60px] px-1">{invoiceNo || '-'}</span>
+          <div className="text-xs sm:text-sm mb-3 space-y-2 px-1">
+            <div className="flex items-center justify-between gap-3 pb-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="bill-green font-bold">No. :</span>
+                <span className="font-extrabold text-slate-900 border-b-2 border-emerald-700/80 min-w-[60px] px-1 pb-0.5">{invoiceNo || '-'}</span>
               </div>
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-center gap-1.5">
                 <span className="bill-green font-bold">Date :</span>
-                <span className="font-bold text-slate-900 border-b border-emerald-700 min-w-[80px] sm:min-w-[95px] px-1 text-right">{formatDateDisplay(date)}</span>
+                <span className="font-bold text-slate-900 border-b-2 border-emerald-700/80 min-w-[95px] px-1 pb-0.5 text-right">{formatDateDisplay(date)}</span>
               </div>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="bill-green font-bold shrink-0">M/s.</span>
-              <span className="font-extrabold text-slate-900 text-xs sm:text-base border-b border-emerald-700 flex-1 px-1 sm:px-2 truncate">{customerName || '____________________'}</span>
+            <div className="flex items-center gap-2 pt-0.5">
+              <span className="bill-green font-bold shrink-0">M/s. :</span>
+              <span className="font-extrabold text-slate-900 text-sm sm:text-base border-b-2 border-emerald-700/80 flex-1 px-2 pb-0.5 truncate">{customerName || '____________________'}</span>
             </div>
           </div>
 
