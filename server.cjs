@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Biroba Vegetable Suppliers — Google Sheets Sync Server
  * Runs locally on port 3001. Vite proxies /api/* here.
  */
@@ -9,8 +9,8 @@ const path = require('path');
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
-const SPREADSHEET_ID = '13IhVAiVcsjZAMVXZP5x95b96cM_ggD1qIlr0pD7Po-M';
-const KEY_FILE = path.join(__dirname, 'business-512417-60e93e3837ee.json');
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '13IhVAiVcsjZAMVXZP5x95b96cM_ggD1qIlr0pD7Po-M';
+const fs = require('fs');
 
 const HEADER_BG  = { red: 0.22745098, green: 0.4117647,  blue: 0.22352941 };
 const HEADER_FG  = { red: 1,          green: 1,          blue: 1          };
@@ -27,8 +27,26 @@ const RESTAURANT_HEADERS = [
 const LEDGER_SHEET = 'Daily Invoice Ledger';
 
 async function getSheets() {
-  const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
-  return google.sheets({ version: 'v4', auth });
+  let credentials;
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    try {
+      const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY.trim();
+      credentials = raw.startsWith('{') ? JSON.parse(raw) : JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+    } catch (_) {}
+  }
+
+  const localKeyPath = path.join(__dirname, 'business-512417-60e93e3837ee.json');
+  if (!credentials && fs.existsSync(localKeyPath)) {
+    const auth = new google.auth.GoogleAuth({ keyFile: localKeyPath, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+    return google.sheets({ version: 'v4', auth });
+  }
+
+  if (credentials) {
+    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+    return google.sheets({ version: 'v4', auth });
+  }
+
+  throw new Error('Google Service Account key not found.');
 }
 
 function fmtDate(iso) {
