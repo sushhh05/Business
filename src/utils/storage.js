@@ -5,8 +5,52 @@ import { PREDEFINED_RESTAURANTS } from '../data/restaurants';
 export const STORAGE_KEYS = {
   CATALOG: 'biroba_veg_catalog_v1',
   RECORDS: 'biroba_invoice_records_v1',
-  CUSTOM_CUSTOMERS: 'biroba_custom_customers_v2'
+  CUSTOM_CUSTOMERS: 'biroba_custom_customers_v2',
+  ACTIVE_DRAFT: 'biroba_active_bill_draft_v2',
+  LAST_ACTIVE_TAB: 'biroba_last_active_tab_v1'
 };
+
+export function loadActiveDraft(fallback) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACTIVE_DRAFT);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.items && typeof parsed.items === 'object') {
+      return parsed;
+    }
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+export function saveActiveDraft(draft) {
+  try {
+    if (draft && typeof draft === 'object') {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_DRAFT, JSON.stringify(draft));
+    }
+  } catch (e) {}
+}
+
+export function loadLastActiveTab() {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.LAST_ACTIVE_TAB);
+    if (val && ['INVOICE', 'SHEET', 'RECORDS', 'CATALOG'].includes(val)) {
+      return val;
+    }
+    return 'INVOICE';
+  } catch (e) {
+    return 'INVOICE';
+  }
+}
+
+export function saveLastActiveTab(tab) {
+  try {
+    if (tab && typeof tab === 'string') {
+      localStorage.setItem(STORAGE_KEYS.LAST_ACTIVE_TAB, tab);
+    }
+  } catch (e) {}
+}
 
 export function loadCatalog() {
   try {

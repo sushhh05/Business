@@ -12,6 +12,10 @@ import {
   saveRecords,
   loadCustomCustomers,
   saveCustomCustomers,
+  loadActiveDraft,
+  saveActiveDraft,
+  loadLastActiveTab,
+  saveLastActiveTab,
   getAllRestaurants,
   getTodayISO,
   SAMPLE_BT_INVOICE,
@@ -21,22 +25,15 @@ import { saveInvoiceToSheet } from './utils/sheetsApi';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('INVOICE'); // INVOICE, SHEET, RECORDS, CATALOG
+  const [mobileTab, setMobileTab] = useState('EDIT'); // EDIT, PREVIEW
   const [catalog, setCatalog] = useState(loadCatalog);
   const [records, setRecords] = useState(loadRecords);
   const [customCustomers, setCustomCustomers] = useState(loadCustomCustomers);
 
-  // Active bill state
+  // Active bill draft state with persistence: loads in-progress draft from localStorage
   const [billData, setBillData] = useState(() => {
-    const initialRec = records[0] || SAMPLE_BT_INVOICE;
-    return {
-      recordId: initialRec.recordId,
-      invoiceNo: initialRec.invoiceNo || '101',
-      customerName: initialRec.customerName || 'BT',
-      date: initialRec.date || getTodayISO(),
-      paymentStatus: initialRec.paymentStatus || 'Credit / Unpaid',
-      tempoHire: initialRec.tempoHire || '',
-      items: initialRec.items || {}
-    };
+    const defaultInitial = records[0] || SAMPLE_BT_INVOICE;
+    return loadActiveDraft(defaultInitial);
   });
 
   // Modal states
@@ -67,6 +64,120 @@ export default function App() {
   useEffect(() => {
     saveCustomCustomers(customCustomers);
   }, [customCustomers]);
+
+  // Continuously auto-save bill draft whenever user enters or edits any field
+  useEffect(() => {
+    saveActiveDraft(billData);
+  }, [billData]);
+
+  // Pagehide/beforeunload persistence guarantee for mobile and desktop exits
+  useEffect(() => {
+    function flushState() {
+      saveActiveDraft(billData);
+      saveRecords(records);
+    }
+    window.addEventListener('beforeunload', flushState);
+    window.addEventListener('pagehide', flushState);
+    return () => {
+      window.removeEventListener('beforeunload', flushState);
+      window.removeEventListener('pagehide', flushState);
+    };
+  }, [billData, records]);
+
+  // Route parser for browser history & hash integration
+  function parseHash(hashStr) {
+    const clean = (hashStr || '').replace(/^#\/?/, '').trim();
+    if (!clean) return { tab: 'INVOICE', sub: 'EDIT', modal: null };
+
+    const [pathPart, queryPart] = clean.split('?');
+    const params = new URLSearchParams(queryPart || '');
+    const modal = params.get('modal');
+
+    const segments = pathPart.split('/');
+    const first = (segments[0] || '').toUpperCase();
+    const second = (segments[1] || '').toUpperCase();
+
+    let tab = 'INVOICE';
+    if (['INVOICE', 'SHEET', 'RECORDS', 'CATALOG'].includes(first)) {
+      tab = first;
+    }
+
+    let sub = 'EDIT';
+    if (tab === 'INVOICE' && second === 'PREVIEW') {
+      sub = 'PREVIEW';
+    }
+
+    return { tab, sub, modal };
+  }
+
+  function navigateTo(tab, sub = 'EDIT', modal = null) {
+    let newHash = tab.toLowerCase();
+    if (tab === 'INVOICE' && sub === 'PREVIEW') {
+      newHash += '/preview';
+    }
+    if (modal) {
+      newHash += `?modal=${modal}`;
+    }
+    if (window.location.hash.replace(/^#\/?/, '') !== newHash) {
+      window.location.hash = newHash;
+    }
+  }
+
+  // Handle route changes via hash (supports browser/hardware back and forward)
+  useEffect(() => {
+    function syncFromHash() {
+      const route = parseHash(window.location.hash);
+      setActiveTab(route.tab);
+      setMobileTab(route.sub);
+      saveLastActiveTab(route.tab);
+
+      // If modal was removed via Back button, close all modals
+      if (!route.modal) {
+        setExportModalBill(null);
+        setIsAddCustModalOpen(false);
+        setIsAddVegModalOpen(false);
+      }
+    }
+
+    window.addEventListener('hashchange', syncFromHash);
+
+    // Initial route setup
+    if (window.location.hash) {
+      syncFromHash();
+    } else {
+      const lastTab = loadLastActiveTab();
+      navigateTo(lastTab, 'EDIT');
+    }
+
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, []);
+
+  // Accidental exit protection: Double-back to exit on root screen
+  useEffect(() => {
+    let lastBackPressTime = 0;
+
+    // Set base sentinel in history
+    if (!window.history.state || !window.history.state.birobaRoot) {
+      window.history.replaceState({ birobaRoot: true }, '');
+      window.history.pushState({ birobaActive: true }, '', window.location.hash || '#invoice');
+    }
+
+    function handlePopState(e) {
+      if (e.state && e.state.birobaRoot) {
+        const now = Date.now();
+        if (now - lastBackPressTime < 2500) {
+          window.history.back();
+        } else {
+          lastBackPressTime = now;
+          showToast('⚠️ Press BACK again to exit • Draft is safely saved');
+          window.history.pushState({ birobaActive: true }, '', window.location.hash || '#invoice');
+        }
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const restaurantsList = getAllRestaurants(customCustomers);
 
@@ -118,7 +229,9 @@ export default function App() {
       return [recToSave, ...prev];
     });
 
-    setBillData(prev => ({ ...prev, recordId: recToSave.recordId }));
+    const updatedBill = { ...billData, recordId: recToSave.recordId };
+    setBillData(updatedBill);
+    saveActiveDraft(updatedBill);
     showToast(`✅ Saved bill #${recToSave.invoiceNo} for ${recToSave.customerName}`);
 
     // Sync to Google Sheets in background
@@ -136,7 +249,7 @@ export default function App() {
     catalog.forEach(v => {
       blankItems[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg' };
     });
-    setBillData({
+    const blankBill = {
       recordId: `rec_${Date.now()}`,
       invoiceNo: getNextInvoiceNumber(),
       customerName: '',
@@ -144,12 +257,14 @@ export default function App() {
       paymentStatus: 'Credit / Unpaid',
       tempoHire: '',
       items: blankItems
-    });
+    };
+    setBillData(blankBill);
+    saveActiveDraft(blankBill);
     showToast('✨ Started fresh blank bill');
   }
 
   function handleLoadSampleBill() {
-    setBillData({
+    const sample = {
       recordId: SAMPLE_BT_INVOICE.recordId,
       invoiceNo: SAMPLE_BT_INVOICE.invoiceNo,
       customerName: SAMPLE_BT_INVOICE.customerName,
@@ -157,7 +272,9 @@ export default function App() {
       paymentStatus: SAMPLE_BT_INVOICE.paymentStatus,
       tempoHire: SAMPLE_BT_INVOICE.tempoHire,
       items: SAMPLE_BT_INVOICE.items
-    });
+    };
+    setBillData(sample);
+    saveActiveDraft(sample);
     showToast('📂 Loaded sample BT invoice');
   }
 
@@ -171,7 +288,7 @@ export default function App() {
       }
     });
 
-    setBillData({
+    const editBill = {
       recordId: record.recordId,
       invoiceNo: record.invoiceNo || '101',
       customerName: record.customerName || '',
@@ -179,9 +296,12 @@ export default function App() {
       paymentStatus: record.paymentStatus || 'Credit / Unpaid',
       tempoHire: record.tempoHire || '',
       items: filledItems
-    });
+    };
 
-    setActiveTab('INVOICE');
+    setBillData(editBill);
+    saveActiveDraft(editBill);
+
+    navigateTo('INVOICE', 'EDIT');
     showToast(`✏️ Loaded bill #${record.invoiceNo} for editing`);
   }
 
@@ -209,16 +329,57 @@ export default function App() {
   function handleStartNewBillForCustomer(customer) {
     handleNewBlankBill();
     if (customer) {
-      setBillData(prev => ({ ...prev, customerName: customer }));
+      setBillData(prev => {
+        const updated = { ...prev, customerName: customer };
+        saveActiveDraft(updated);
+        return updated;
+      });
     }
-    setActiveTab('INVOICE');
+    navigateTo('INVOICE', 'EDIT');
+  }
+
+  // Modal handlers integrated with browser history
+  function handleOpenAddCustModal() {
+    setIsAddCustModalOpen(true);
+    navigateTo(activeTab, mobileTab, 'add-cust');
+  }
+
+  function handleCloseAddCustModal() {
+    setIsAddCustModalOpen(false);
+    if (window.location.hash.includes('modal=')) {
+      window.history.back();
+    }
+  }
+
+  function handleOpenAddVegModal() {
+    setIsAddVegModalOpen(true);
+    navigateTo(activeTab, mobileTab, 'add-veg');
+  }
+
+  function handleCloseAddVegModal() {
+    setIsAddVegModalOpen(false);
+    if (window.location.hash.includes('modal=')) {
+      window.history.back();
+    }
+  }
+
+  function handleOpenExportModal(bill) {
+    setExportModalBill(bill);
+    navigateTo(activeTab, mobileTab, 'export');
+  }
+
+  function handleCloseExportModal() {
+    setExportModalBill(null);
+    if (window.location.hash.includes('modal=')) {
+      window.history.back();
+    }
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100/70">
       <Header
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => navigateTo(tab, 'EDIT')}
         recordsCount={records.length}
         catalogCount={catalog.length}
       />
@@ -230,12 +391,14 @@ export default function App() {
             billData={billData}
             setBillData={setBillData}
             restaurantsList={restaurantsList}
-            onOpenAddCustomCustomer={() => setIsAddCustModalOpen(true)}
-            onOpenAddVegetable={() => setIsAddVegModalOpen(true)}
+            onOpenAddCustomCustomer={handleOpenAddCustModal}
+            onOpenAddVegetable={handleOpenAddVegModal}
             onSaveBill={handleSaveBill}
             onNewBlankBill={handleNewBlankBill}
             onLoadSampleBill={handleLoadSampleBill}
-            onOpenExportModal={() => setExportModalBill(billData)}
+            onOpenExportModal={() => handleOpenExportModal(billData)}
+            mobileTab={mobileTab}
+            setMobileTab={(tab) => navigateTo('INVOICE', tab)}
             showToast={showToast}
           />
         )}
@@ -249,7 +412,7 @@ export default function App() {
             onEditRecordInBill={handleEditRecordInBill}
             onDuplicateForToday={handleDuplicateForToday}
             onDeleteRecord={handleDeleteRecord}
-            onOpenPdfForRecord={rec => setExportModalBill(rec)}
+            onOpenPdfForRecord={rec => handleOpenExportModal(rec)}
             onStartNewBillForCustomer={handleStartNewBillForCustomer}
             showToast={showToast}
           />
@@ -264,7 +427,7 @@ export default function App() {
             onEditRecord={handleEditRecordInBill}
             onDuplicateRecord={handleDuplicateForToday}
             onDeleteRecord={handleDeleteRecord}
-            onOpenPdf={rec => setExportModalBill(rec)}
+            onOpenPdf={rec => handleOpenExportModal(rec)}
             showToast={showToast}
           />
         )}
@@ -273,39 +436,39 @@ export default function App() {
           <CatalogView
             catalog={catalog}
             setCatalog={setCatalog}
-            onOpenAddVegetable={() => setIsAddVegModalOpen(true)}
+            onOpenAddVegetable={handleOpenAddVegModal}
             showToast={showToast}
           />
         )}
       </main>
 
-      {/* Modals */}
+      {/* Modals with browser back button support */}
       <AddCustomCustomerModal
         isOpen={isAddCustModalOpen}
-        onClose={() => setIsAddCustModalOpen(false)}
+        onClose={handleCloseAddCustModal}
         onSave={newCust => {
           if (!customCustomers.includes(newCust) && !restaurantsList.includes(newCust)) {
             setCustomCustomers(prev => [...prev, newCust]);
           }
           setBillData(prev => ({ ...prev, customerName: newCust }));
-          setIsAddCustModalOpen(false);
+          handleCloseAddCustModal();
           showToast(`✅ Added & selected: ${newCust}`);
         }}
       />
 
       <AddVegetableModal
         isOpen={isAddVegModalOpen}
-        onClose={() => setIsAddVegModalOpen(false)}
+        onClose={handleCloseAddVegModal}
         onSave={newVeg => {
           setCatalog(prev => [...prev, newVeg]);
-          setIsAddVegModalOpen(false);
+          handleCloseAddVegModal();
           showToast(`✅ Added ${newVeg.name} to catalog`);
         }}
       />
 
       <ExportModal
         isOpen={Boolean(exportModalBill)}
-        onClose={() => setExportModalBill(null)}
+        onClose={handleCloseExportModal}
         billData={exportModalBill}
         catalog={catalog}
         showToast={showToast}

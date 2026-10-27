@@ -21,12 +21,13 @@ export default function BillEntry({
   onNewBlankBill,
   onLoadSampleBill,
   onOpenExportModal,
+  mobileTab = 'EDIT',
+  setMobileTab,
   showToast
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('ALL');
   const [showAllInPreview, setShowAllInPreview] = useState(false);
-  const [mobileTab, setMobileTab] = useState('EDIT'); // 'EDIT' or 'PREVIEW'
   const rowRefs = useRef({});
 
   const { invoiceNo, customerName, date, paymentStatus, tempoHire, items } = billData;
@@ -504,6 +505,24 @@ export default function BillEntry({
 
       {/* Right Column: Live Official Invoice Preview */}
       <div className={`lg:col-span-5 print-only-container lg:sticky lg:top-20 w-full ${mobileTab === 'EDIT' ? 'hidden lg:block' : 'block'}`}>
+        {/* Mobile-Only Return to Edit Button */}
+        <div className="no-print lg:hidden mb-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.location.hash.includes('preview')) {
+                window.history.back();
+              } else if (setMobileTab) {
+                setMobileTab('EDIT');
+              }
+            }}
+            className="w-full py-2.5 px-4 rounded-xl bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-98"
+          >
+            <span>←</span>
+            <span>Back to Edit Bill</span>
+          </button>
+        </div>
+
         <div className="no-print bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 sm:p-3 mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">Live Bill Preview</span>
