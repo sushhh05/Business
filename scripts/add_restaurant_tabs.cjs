@@ -33,7 +33,6 @@ const ALT_ROW_BG = { red: 0.93, green: 0.96, blue: 0.93 }; // soft green tint fo
 const HEADERS = [
   'Invoice No.',
   'Date',
-  'Items Ordered',
   'Total (Rs.)',
   'Tempo Hire (Rs.)',
   'Grand Total (Rs.)',

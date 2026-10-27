@@ -20,7 +20,7 @@ const ALT_ROW_BG = { red: 0.93,       green: 0.96,       blue: 0.93       };
 const TITLE_BG   = { red: 0.1451,     green: 0.2784,     blue: 0.1451     };
 
 const RESTAURANT_HEADERS = [
-  'Invoice No.', 'Date', 'Items Ordered',
+  'Invoice No.', 'Date',
   'Total (Rs.)', 'Tempo Hire (Rs.)', 'Grand Total (Rs.)',
   'Payment Status', 'Notes'
 ];
@@ -99,7 +99,7 @@ async function createRestaurantTab(sheets, name) {
     { mergeCells: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: RESTAURANT_HEADERS.length }, mergeType: 'MERGE_ALL' } },
     { updateCells: { range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: RESTAURANT_HEADERS.length }, rows: [{ values: RESTAURANT_HEADERS.map(h => ({ userEnteredFormat: { backgroundColor: HEADER_BG, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', textFormat: { foregroundColor: HEADER_FG, fontFamily: 'Montserrat', fontSize: 11, bold: true } }, userEnteredValue: { stringValue: h } })) }], fields: 'userEnteredValue,userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,textFormat)' } },
     { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 2 } }, fields: 'gridProperties.frozenRowCount' } },
-    ...[90,100,320,100,110,110,140,180].map((px, ci) => ({ updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: ci, endIndex: ci+1 }, properties: { pixelSize: px }, fields: 'pixelSize' } }))
+    ...[100, 110, 120, 120, 130, 140, 180].map((px, ci) => ({ updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: ci, endIndex: ci+1 }, properties: { pixelSize: px }, fields: 'pixelSize' } }))
   ];
   await sheets.spreadsheets.batchUpdate({ spreadsheetId: SPREADSHEET_ID, requestBody: { requests: fmtReqs } });
   console.log('  Created tab:', name);
@@ -121,7 +121,7 @@ async function writeInvoiceToRestaurantTab(sheets, tabName, rec, catalog) {
   const subtotal = computeSubtotal(rec, catalog);
   const tempo = parseFloat(rec.tempoHire) || 0;
   const grand = Math.round((subtotal + tempo) * 100) / 100;
-  const rowValues = [String(rec.invoiceNo || ''), fmtDate(rec.date), buildItemsSummary(rec, catalog), fmtMoney(subtotal), tempo > 0 ? fmtMoney(tempo) : '', fmtMoney(grand), rec.paymentStatus || '', ''];
+  const rowValues = [String(rec.invoiceNo || ''), fmtDate(rec.date), fmtMoney(subtotal), tempo > 0 ? fmtMoney(tempo) : '', fmtMoney(grand), rec.paymentStatus || '', ''];
 
   const existingRow = await findRowByInvoiceNo(sheets, tabName, rec.invoiceNo);
   if (existingRow) {

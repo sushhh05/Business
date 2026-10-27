@@ -338,13 +338,13 @@ export default function SheetView({
           <table className="w-full text-left border-collapse text-xs sm:text-sm">
             <thead className="bg-slate-100 sticky top-0 z-10 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
               <tr>
-                <th className="py-3 px-4 w-12 text-center">Sr.</th>
-                <th className="py-3 px-4 w-24 text-left">Invoice #</th>
-                <th className="py-3 px-4 w-28">Date</th>
-                <th className="py-3 px-4 min-w-[140px]">Restaurant (M/s.)</th>
-                <th className="py-3 px-4 text-right min-w-[130px] text-emerald-900 bg-emerald-50/60 font-black">Total Amount</th>
+                <th className="py-3 px-4 w-14 text-center">Sr.</th>
+                <th className="py-3 px-4 w-28 text-left">Invoice #</th>
+                <th className="py-3 px-4 w-32">Date</th>
+                <th className="py-3 px-4 min-w-[160px]">Restaurant (M/s.)</th>
+                <th className="py-3 px-4 text-right w-40 text-emerald-900 bg-emerald-50/60 font-black">Total Amount</th>
                 <th className="py-3 px-4 text-center w-36">Status</th>
-                <th className="py-3 px-4 text-right w-44">Actions</th>
+                <th className="py-3 px-4 text-right min-w-[200px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-xs sm:text-sm">
