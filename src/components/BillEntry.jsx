@@ -56,13 +56,32 @@ export default function BillEntry({
   const grandTotal = Math.round((subtotal + (parseFloat(tempoHire) || 0)) * 100) / 100;
 
   function updateItem(vegId, updates) {
+    const vegMeta = catalog.find(v => v.id === vegId);
+
     setBillData(prev => {
-      const currentItem = prev.items[vegId] || { weight: '', rate: '', amount: '', mode: 'per_kg' };
+      const currentItem = prev.items[vegId] || {
+        weight: '',
+        rate: vegMeta?.defaultRate || '',
+        amount: '',
+        mode: vegMeta?.mode || 'per_kg'
+      };
       const updated = { ...currentItem, ...updates };
 
-      if (updates.weight !== undefined || updates.rate !== undefined) {
+      // When quantity/weight is entered, if rate is empty or '0', auto-fetch defaultRate from catalog!
+      if (updates.weight !== undefined && String(updates.weight).trim() !== '') {
+        if ((!updated.rate || String(updated.rate).trim() === '' || String(updated.rate).trim() === '0') && vegMeta?.defaultRate) {
+          if (updated.mode !== 'lump_sum' && updated.mode !== 'free') {
+            updated.rate = String(vegMeta.defaultRate);
+          }
+        }
+      }
+
+      if (updates.weight !== undefined || updates.rate !== undefined || updates.mode !== undefined) {
         if (updated.mode === 'per_kg' || updated.mode === 'per_100') {
           updated.amount = computeRowAmount(updated.weight, updated.rate, updated.amount, updated.mode);
+        } else if (updated.mode === 'free') {
+          updated.rate = '';
+          updated.amount = '';
         }
       }
 
@@ -411,7 +430,7 @@ export default function BillEntry({
                             step="any"
                             min="0"
                             enterKeyHint="next"
-                            placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : 'Rate'}
+                            placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : (veg.defaultRate ? `₹${veg.defaultRate}` : 'Rate')}
                             disabled={st.mode === 'lump_sum' || st.mode === 'free'}
                             value={st.mode === 'lump_sum' || st.mode === 'free' ? '' : st.rate}
                             onChange={e => updateItem(veg.id, { rate: e.target.value })}
