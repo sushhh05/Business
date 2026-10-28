@@ -274,31 +274,14 @@ export default function BillEntry({
                 <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">1</span>
                 <h2 className="font-bold text-slate-800 text-sm sm:text-base">Restaurant &amp; Bill Details</h2>
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={onLoadSampleBill}
-                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition"
-                  title="Load sample vegetable invoice for BT"
-                >
-                  🥬 BT (Veg)
-                </button>
-                {onLoadFruitSampleBill && (
-                  <button
-                    type="button"
-                    onClick={onLoadFruitSampleBill}
-                    className="text-xs font-semibold text-red-700 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg border border-red-200 transition"
-                    title="Load sample fruit invoice for LOCOMO"
-                  >
-                    🍎 LOCOMO (Fruit)
-                  </button>
-                )}
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={onNewBlankBill}
-                  className="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition"
+                  className="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition flex items-center gap-1 shadow-2xs"
                 >
-                  + New Blank
+                  <span>✨</span>
+                  <span>+ New Blank Bill</span>
                 </button>
               </div>
             </div>
