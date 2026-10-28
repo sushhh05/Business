@@ -20,6 +20,7 @@ export default function BillEntry({
   onSaveBill,
   onNewBlankBill,
   onLoadSampleBill,
+  onLoadFruitSampleBill,
   onOpenExportModal,
   mobileTab = 'EDIT',
   setMobileTab,
@@ -30,6 +31,7 @@ export default function BillEntry({
   const [showAllInPreview, setShowAllInPreview] = useState(false);
   const rowRefs = useRef({});
 
+  const isFruit = billData.billCategory === 'FRUITS';
   const { invoiceNo, customerName, date, paymentStatus, tempoHire, items } = billData;
 
   // Filter catalog rows
@@ -169,7 +171,8 @@ export default function BillEntry({
       customerName,
       items,
       tempoHire,
-      paymentStatus
+      paymentStatus,
+      billCategory: isFruit ? 'FRUITS' : 'VEGETABLES'
     };
     await shareInvoiceAsImage('printableBillArea', {
       invoiceNo,
@@ -213,22 +216,92 @@ export default function BillEntry({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column: Interactive Order Entry & Controls */}
         <div className={`no-print lg:col-span-7 space-y-4 ${mobileTab === 'PREVIEW' ? 'hidden lg:block' : 'block'}`}>
-          {/* Step 1: Customer & Invoice Details Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">1</span>
-              <h2 className="font-bold text-slate-800 text-sm sm:text-base">Restaurant &amp; Bill Details</h2>
+          {/* Bill Book Type Switcher */}
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 p-3 rounded-2xl border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xl">{isFruit ? '🍎' : '🥬'}</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-800 text-sm">
+                    {isFruit ? 'Fruit Bill Book' : 'Vegetable Bill Book'}
+                  </h3>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                    isFruit ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  }`}>
+                    {isFruit ? '18 Printed Fruits' : '42 Printed Veggies'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {isFruit
+                    ? 'Entering fruits for restaurants (Mosambi, Orange, Water Melon, Banana...)'
+                    : 'Entering daily fresh vegetables for restaurants'}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={onLoadSampleBill} className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition">
-                Load Sample Bill (BT - 20/10/26)
+
+            <div className="flex items-center p-1 bg-white rounded-xl border border-slate-200 shadow-xs w-full sm:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setBillData(prev => ({ ...prev, billCategory: 'VEGETABLES' }))}
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  !isFruit
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <span>🥬</span>
+                <span>Vegetables</span>
               </button>
-              <button type="button" onClick={onNewBlankBill} className="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition">
-                + New Blank Bill
+              <button
+                type="button"
+                onClick={() => setBillData(prev => ({ ...prev, billCategory: 'FRUITS' }))}
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  isFruit
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <span>🍎</span>
+                <span>Fruits</span>
               </button>
             </div>
           </div>
+
+          {/* Step 1: Customer & Invoice Details Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">1</span>
+                <h2 className="font-bold text-slate-800 text-sm sm:text-base">Restaurant &amp; Bill Details</h2>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={onLoadSampleBill}
+                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition"
+                  title="Load sample vegetable invoice for BT"
+                >
+                  🥬 BT (Veg)
+                </button>
+                {onLoadFruitSampleBill && (
+                  <button
+                    type="button"
+                    onClick={onLoadFruitSampleBill}
+                    className="text-xs font-semibold text-red-700 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg border border-red-200 transition"
+                    title="Load sample fruit invoice for LOCOMO"
+                  >
+                    🍎 LOCOMO (Fruit)
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onNewBlankBill}
+                  className="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition"
+                >
+                  + New Blank
+                </button>
+              </div>
+            </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             <div className="sm:col-span-3">
@@ -312,19 +385,27 @@ export default function BillEntry({
           </div>
         </div>
 
-        {/* Step 2: Vegetable Order Entry Table */}
+        {/* Step 2: Order Entry Table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">2</span>
+              <span className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center ${
+                isFruit ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+              }`}>2</span>
               <div>
-                <h2 className="font-bold text-slate-800 text-sm sm:text-base">Enter Today's Vegetable Quantities &amp; Rates</h2>
+                <h2 className="font-bold text-slate-800 text-sm sm:text-base">
+                  Enter Today's {isFruit ? 'Fruit' : 'Vegetable'} Quantities &amp; Rates
+                </h2>
                 <p className="text-xs text-slate-500">Only items with a Weight or Amount entered appear on the final restaurant invoice.</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <button type="button" onClick={onOpenAddVegetable} className="text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition">
-                + Add Custom Item
+              <button
+                type="button"
+                onClick={() => onOpenAddVegetable(isFruit ? 'Fruit' : 'Vegetable')}
+                className="text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition"
+              >
+                + Add Custom {isFruit ? 'Fruit' : 'Item'}
               </button>
               <button type="button" onClick={clearAllEntries} className="text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-2.5 py-1.5 rounded-lg transition">
                 Clear Entries
@@ -337,7 +418,7 @@ export default function BillEntry({
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="Search vegetable (e.g. Flower, Tomato, Lemon, Turya)..."
+                placeholder={isFruit ? 'Search fruit (e.g. Water Melon, Banana, Orange, Kiwi)...' : 'Search vegetable (e.g. Flower, Tomato, Lemon, Turya)...'}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-7 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
@@ -351,28 +432,28 @@ export default function BillEntry({
               <button
                 type="button"
                 onClick={() => setFilterMode('ALL')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${filterMode === 'ALL' ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${filterMode === 'ALL' ? (isFruit ? 'bg-red-700 text-white' : 'bg-emerald-700 text-white') : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 All Items ({catalog.length})
               </button>
               <button
                 type="button"
                 onClick={() => setFilterMode('ORDERED')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${filterMode === 'ORDERED' ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${filterMode === 'ORDERED' ? (isFruit ? 'bg-red-700 text-white' : 'bg-emerald-700 text-white') : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 Ordered Only ({orderedCount})
               </button>
             </div>
           </div>
 
-          {/* Scrollable Vegetable Entry List */}
+          {/* Scrollable Entry List */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <div className="max-h-[460px] overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-100 sticky top-0 z-10 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
                   <tr>
                     <th className="py-2.5 px-2.5 w-10 text-center">#</th>
-                    <th className="py-2.5 px-2.5">Vegetable (Particulars)</th>
+                    <th className="py-2.5 px-2.5">{isFruit ? 'Fruit' : 'Vegetable'} (Particulars)</th>
                     <th className="py-2.5 px-2 w-28">Mode</th>
                     <th className="py-2.5 px-2 w-24 text-right">Weight/Qty</th>
                     <th className="py-2.5 px-2 w-24 text-right">Rate (₹)</th>
@@ -601,7 +682,7 @@ export default function BillEntry({
                 ALL KINDS OF FRESH VEGETABLE &amp; FRUITS WHOLESALE SUPPLIERS
               </p>
               <p className="bill-green font-semibold text-[8px] sm:text-[10px] leading-tight">
-                Old Bhaji Market Byculla Mumbai-400 027<span className="hidden sm:inline"> • M.: 9892406958 / 7400106277</span>
+                Old Bhaji Market Byculla Mumbai-400 027<span className="hidden sm:inline"> • M.: 9892406958 / 8451869058</span>
               </p>
               <p className="bill-red font-bold text-[10.5px] sm:text-sm mt-0.5">
                 Prop.: Birappa B. Nigadi
@@ -624,6 +705,13 @@ export default function BillEntry({
               <span className="bill-green font-bold shrink-0">M/s. :</span>
               <span className="font-extrabold text-slate-900 text-sm sm:text-base border-b-2 border-emerald-700/80 flex-1 px-2 pb-0.5 truncate">{customerName || '____________________'}</span>
             </div>
+            {isFruit && (
+              <div className="text-center py-0.5">
+                <span className="inline-block bg-red-100 text-red-800 border border-red-300 font-extrabold text-[9px] sm:text-xs px-2.5 py-0.5 rounded-md tracking-wider uppercase shadow-xs">
+                  🍎 FRUIT INVOICE SLIP
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="w-full overflow-hidden">

@@ -8,6 +8,8 @@ import { AddCustomCustomerModal, AddVegetableModal, ExportModal } from './compon
 import {
   loadCatalog,
   saveCatalog,
+  loadFruitCatalog,
+  saveFruitCatalog,
   loadRecords,
   saveRecords,
   loadCustomCustomers,
@@ -19,6 +21,7 @@ import {
   getAllRestaurants,
   getTodayISO,
   SAMPLE_BT_INVOICE,
+  SAMPLE_LOCOMO_FRUIT_INVOICE,
   computeRecordGrandTotal
 } from './utils/storage';
 import { saveInvoiceToSheet } from './utils/sheetsApi';
@@ -27,6 +30,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('INVOICE'); // INVOICE, SHEET, RECORDS, CATALOG
   const [mobileTab, setMobileTab] = useState('EDIT'); // EDIT, PREVIEW
   const [catalog, setCatalog] = useState(loadCatalog);
+  const [fruitCatalog, setFruitCatalog] = useState(loadFruitCatalog);
   const [records, setRecords] = useState(loadRecords);
   const [customCustomers, setCustomCustomers] = useState(loadCustomCustomers);
 
@@ -39,6 +43,7 @@ export default function App() {
   // Modal states
   const [isAddCustModalOpen, setIsAddCustModalOpen] = useState(false);
   const [isAddVegModalOpen, setIsAddVegModalOpen] = useState(false);
+  const [addModalItemType, setAddModalItemType] = useState('Vegetable');
   const [exportModalBill, setExportModalBill] = useState(null);
 
   // Toast banner state
@@ -56,6 +61,10 @@ export default function App() {
   useEffect(() => {
     saveCatalog(catalog);
   }, [catalog]);
+
+  useEffect(() => {
+    saveFruitCatalog(fruitCatalog);
+  }, [fruitCatalog]);
 
   useEffect(() => {
     saveRecords(records);
@@ -180,6 +189,8 @@ export default function App() {
   }, []);
 
   const restaurantsList = getAllRestaurants(customCustomers);
+  const combinedCatalog = [...catalog, ...fruitCatalog];
+  const currentBillCatalog = billData.billCategory === 'FRUITS' ? fruitCatalog : catalog;
 
   function getNextInvoiceNumber() {
     let max = 100;
@@ -196,8 +207,11 @@ export default function App() {
       return;
     }
 
+    const isFruit = billData.billCategory === 'FRUITS';
+    const activeCat = isFruit ? fruitCatalog : catalog;
+
     const orderedItems = {};
-    catalog.forEach(v => {
+    activeCat.forEach(v => {
       const it = billData.items[v.id];
       if (it && ((it.weight && parseFloat(it.weight) > 0) || (it.amount && parseFloat(it.amount) > 0))) {
         orderedItems[v.id] = it;
@@ -205,7 +219,7 @@ export default function App() {
     });
 
     if (Object.keys(orderedItems).length === 0) {
-      showToast('⚠️ Please enter at least 1 vegetable');
+      showToast(`⚠️ Please enter at least 1 ${isFruit ? 'fruit' : 'vegetable'}`);
       return;
     }
 
@@ -214,6 +228,7 @@ export default function App() {
       invoiceNo: billData.invoiceNo || getNextInvoiceNumber(),
       customerName: billData.customerName.trim(),
       date: billData.date || getTodayISO(),
+      billCategory: isFruit ? 'FRUITS' : 'VEGETABLES',
       paymentStatus: billData.paymentStatus || 'Credit / Unpaid',
       tempoHire: parseFloat(billData.tempoHire) || 0,
       items: orderedItems
@@ -232,10 +247,10 @@ export default function App() {
     const updatedBill = { ...billData, recordId: recToSave.recordId };
     setBillData(updatedBill);
     saveActiveDraft(updatedBill);
-    showToast(`✅ Saved bill #${recToSave.invoiceNo} for ${recToSave.customerName}`);
+    showToast(`✅ Saved ${isFruit ? 'fruit' : 'vegetable'} bill #${recToSave.invoiceNo} for ${recToSave.customerName}`);
 
     // Sync to Google Sheets in background
-    saveInvoiceToSheet(recToSave, catalog).then(result => {
+    saveInvoiceToSheet(recToSave, activeCat).then(result => {
       if (result.ok) {
         showToast(`📊 Synced to Google Sheets (${result.tabResult?.action || 'saved'})`);
       } else {
@@ -244,9 +259,11 @@ export default function App() {
     });
   }
 
-  function handleNewBlankBill() {
+  function handleNewBlankBill(targetCategory) {
+    const isFruit = (targetCategory || billData.billCategory) === 'FRUITS';
+    const activeCat = isFruit ? fruitCatalog : catalog;
     const blankItems = {};
-    catalog.forEach(v => {
+    activeCat.forEach(v => {
       blankItems[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg' };
     });
     const blankBill = {
@@ -254,13 +271,14 @@ export default function App() {
       invoiceNo: getNextInvoiceNumber(),
       customerName: '',
       date: getTodayISO(),
+      billCategory: isFruit ? 'FRUITS' : 'VEGETABLES',
       paymentStatus: 'Credit / Unpaid',
       tempoHire: '',
       items: blankItems
     };
     setBillData(blankBill);
     saveActiveDraft(blankBill);
-    showToast('✨ Started fresh blank bill');
+    showToast(`✨ Started fresh blank ${isFruit ? 'fruit' : 'vegetable'} bill`);
   }
 
   function handleLoadSampleBill() {
@@ -269,18 +287,37 @@ export default function App() {
       invoiceNo: SAMPLE_BT_INVOICE.invoiceNo,
       customerName: SAMPLE_BT_INVOICE.customerName,
       date: SAMPLE_BT_INVOICE.date,
+      billCategory: 'VEGETABLES',
       paymentStatus: SAMPLE_BT_INVOICE.paymentStatus,
       tempoHire: SAMPLE_BT_INVOICE.tempoHire,
       items: SAMPLE_BT_INVOICE.items
     };
     setBillData(sample);
     saveActiveDraft(sample);
-    showToast('📂 Loaded sample BT invoice');
+    showToast('📂 Loaded sample BT vegetable invoice');
+  }
+
+  function handleLoadFruitSampleBill() {
+    const sample = {
+      recordId: SAMPLE_LOCOMO_FRUIT_INVOICE.recordId,
+      invoiceNo: SAMPLE_LOCOMO_FRUIT_INVOICE.invoiceNo,
+      customerName: SAMPLE_LOCOMO_FRUIT_INVOICE.customerName,
+      date: SAMPLE_LOCOMO_FRUIT_INVOICE.date,
+      billCategory: 'FRUITS',
+      paymentStatus: SAMPLE_LOCOMO_FRUIT_INVOICE.paymentStatus,
+      tempoHire: SAMPLE_LOCOMO_FRUIT_INVOICE.tempoHire,
+      items: SAMPLE_LOCOMO_FRUIT_INVOICE.items
+    };
+    setBillData(sample);
+    saveActiveDraft(sample);
+    showToast('📂 Loaded sample LOCOMO fruit invoice');
   }
 
   function handleEditRecordInBill(record) {
+    const isFruit = record.billCategory === 'FRUITS';
+    const activeCat = isFruit ? fruitCatalog : catalog;
     const filledItems = {};
-    catalog.forEach(v => {
+    activeCat.forEach(v => {
       if (record.items && record.items[v.id]) {
         filledItems[v.id] = { ...record.items[v.id] };
       } else {
@@ -293,6 +330,7 @@ export default function App() {
       invoiceNo: record.invoiceNo || '101',
       customerName: record.customerName || '',
       date: record.date || getTodayISO(),
+      billCategory: isFruit ? 'FRUITS' : 'VEGETABLES',
       paymentStatus: record.paymentStatus || 'Credit / Unpaid',
       tempoHire: record.tempoHire || '',
       items: filledItems
@@ -302,7 +340,7 @@ export default function App() {
     saveActiveDraft(editBill);
 
     navigateTo('INVOICE', 'EDIT');
-    showToast(`✏️ Loaded bill #${record.invoiceNo} for editing`);
+    showToast(`✏️ Loaded ${isFruit ? 'fruit' : 'vegetable'} bill #${record.invoiceNo} for editing`);
   }
 
   function handleDuplicateForToday(recordId) {
@@ -351,9 +389,10 @@ export default function App() {
     }
   }
 
-  function handleOpenAddVegModal() {
+  function handleOpenAddVegModal(itemType = 'Vegetable') {
+    setAddModalItemType(itemType);
     setIsAddVegModalOpen(true);
-    navigateTo(activeTab, mobileTab, 'add-veg');
+    navigateTo(activeTab, mobileTab, 'add-item');
   }
 
   function handleCloseAddVegModal() {
@@ -381,13 +420,13 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={(tab) => navigateTo(tab, 'EDIT')}
         recordsCount={records.length}
-        catalogCount={catalog.length}
+        catalogCount={catalog.length + fruitCatalog.length}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-4">
         {activeTab === 'INVOICE' && (
           <BillEntry
-            catalog={catalog}
+            catalog={currentBillCatalog}
             billData={billData}
             setBillData={setBillData}
             restaurantsList={restaurantsList}
@@ -396,6 +435,7 @@ export default function App() {
             onSaveBill={handleSaveBill}
             onNewBlankBill={handleNewBlankBill}
             onLoadSampleBill={handleLoadSampleBill}
+            onLoadFruitSampleBill={handleLoadFruitSampleBill}
             onOpenExportModal={() => handleOpenExportModal(billData)}
             mobileTab={mobileTab}
             setMobileTab={(tab) => navigateTo('INVOICE', tab)}
@@ -408,7 +448,7 @@ export default function App() {
             records={records}
             setRecords={setRecords}
             restaurantsList={restaurantsList}
-            catalog={catalog}
+            catalog={combinedCatalog}
             onEditRecordInBill={handleEditRecordInBill}
             onDuplicateForToday={handleDuplicateForToday}
             onDeleteRecord={handleDeleteRecord}
@@ -423,7 +463,7 @@ export default function App() {
             records={records}
             setRecords={setRecords}
             restaurantsList={restaurantsList}
-            catalog={catalog}
+            catalog={combinedCatalog}
             onEditRecord={handleEditRecordInBill}
             onDuplicateRecord={handleDuplicateForToday}
             onDeleteRecord={handleDeleteRecord}
@@ -436,6 +476,8 @@ export default function App() {
           <CatalogView
             catalog={catalog}
             setCatalog={setCatalog}
+            fruitCatalog={fruitCatalog}
+            setFruitCatalog={setFruitCatalog}
             onOpenAddVegetable={handleOpenAddVegModal}
             showToast={showToast}
           />
@@ -458,11 +500,17 @@ export default function App() {
 
       <AddVegetableModal
         isOpen={isAddVegModalOpen}
+        itemType={addModalItemType}
         onClose={handleCloseAddVegModal}
         onSave={newVeg => {
-          setCatalog(prev => [...prev, newVeg]);
+          if (newVeg.category === 'FRUITS') {
+            setFruitCatalog(prev => [...prev, newVeg]);
+            showToast(`✅ Added ${newVeg.name} to fruit catalog`);
+          } else {
+            setCatalog(prev => [...prev, newVeg]);
+            showToast(`✅ Added ${newVeg.name} to vegetable catalog`);
+          }
           handleCloseAddVegModal();
-          showToast(`✅ Added ${newVeg.name} to catalog`);
         }}
       />
 
@@ -470,7 +518,7 @@ export default function App() {
         isOpen={Boolean(exportModalBill)}
         onClose={handleCloseExportModal}
         billData={exportModalBill}
-        catalog={catalog}
+        catalog={exportModalBill?.billCategory === 'FRUITS' ? fruitCatalog : catalog}
         showToast={showToast}
       />
 

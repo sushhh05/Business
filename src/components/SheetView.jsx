@@ -18,6 +18,7 @@ export default function SheetView({
   const [activeTab, setActiveTab] = useState(restaurantsList[0] || 'SAI DARSHAN');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'VEGETABLES' | 'FRUITS'
 
   // Fallback to first restaurant if activeTab is not in list
   const effectiveActiveTab = restaurantsList.includes(activeTab)
@@ -36,6 +37,7 @@ export default function SheetView({
 
   function getStartOfMonthISO() {
     const d = new Date();
+    d.setDate(d.getFullYear(), d.getMonth(), 1);
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     return `${y}-${m}-01`;
@@ -73,6 +75,8 @@ export default function SheetView({
 
   const filteredRecords = records.filter(r => {
     if (r.customerName !== effectiveActiveTab) return false;
+    if (categoryFilter === 'VEGETABLES' && r.billCategory === 'FRUITS') return false;
+    if (categoryFilter === 'FRUITS' && r.billCategory !== 'FRUITS') return false;
     if (fromDate && r.date < fromDate) return false;
     if (toDate && r.date > toDate) return false;
     return true;
@@ -117,7 +121,8 @@ export default function SheetView({
         fromDate,
         toDate,
         records: filteredRecords,
-        catalog
+        catalog,
+        categoryFilter
       });
 
       const blob = new Blob([bytes], { type: 'application/pdf' });
@@ -126,7 +131,8 @@ export default function SheetView({
       a.href = url;
       const fStr = fromDate || 'Start';
       const tStr = toDate || getTodayISO();
-      a.download = `Biroba_Statement_${effectiveActiveTab.replace(/[^a-zA-Z0-9]/g, '_')}_${fStr}_to_${tStr}.pdf`;
+      const catPrefix = categoryFilter === 'FRUITS' ? 'Fruit_Statement' : (categoryFilter === 'VEGETABLES' ? 'Veg_Statement' : 'Statement');
+      a.download = `Biroba_${catPrefix}_${effectiveActiveTab.replace(/[^a-zA-Z0-9]/g, '_')}_${fStr}_to_${tStr}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -248,6 +254,43 @@ export default function SheetView({
               />
             </div>
 
+            {/* Category Filter: All / Veg / Fruit */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                  categoryFilter === 'ALL'
+                    ? 'bg-white text-emerald-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>All Bills</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('VEGETABLES')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                  categoryFilter === 'VEGETABLES'
+                    ? 'bg-white text-emerald-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🥬 Veg</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('FRUITS')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                  categoryFilter === 'FRUITS'
+                    ? 'bg-white text-red-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🍎 Fruit</span>
+              </button>
+            </div>
+
             {/* Quick Range Presets */}
             <div className="flex items-center gap-1 flex-wrap">
               <button
@@ -355,7 +398,20 @@ export default function SheetView({
                 return (
                   <tr key={rec.recordId} className="hover:bg-emerald-50/40 transition border-b border-slate-100">
                     <td className="py-3 px-4 text-center font-semibold text-slate-500">{idx + 1}</td>
-                    <td className="py-3 px-4 text-left font-bold text-slate-800 whitespace-nowrap">#{rec.invoiceNo || '-'}</td>
+                    <td className="py-3 px-4 text-left font-bold text-slate-800 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span>#{rec.invoiceNo || '-'}</span>
+                        {rec.billCategory === 'FRUITS' ? (
+                          <span className="bg-red-50 text-red-700 border border-red-200 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                            🍎 Fruit
+                          </span>
+                        ) : (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                            🥬 Veg
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">{formatDateDisplay(rec.date)}</td>
                     <td className="py-3 px-4 font-bold text-slate-900">{rec.customerName || '-'}</td>
                     <td className="py-3 px-4 text-right font-extrabold text-emerald-900 bg-emerald-50/50 text-sm whitespace-nowrap">

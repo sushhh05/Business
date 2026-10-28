@@ -1,9 +1,10 @@
-import { DEFAULT_CATALOG, SAMPLE_BT_INVOICE } from '../data/defaultCatalog';
-export { DEFAULT_CATALOG, SAMPLE_BT_INVOICE };
+import { DEFAULT_CATALOG, DEFAULT_FRUIT_CATALOG, SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE } from '../data/defaultCatalog';
+export { DEFAULT_CATALOG, DEFAULT_FRUIT_CATALOG, SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE };
 import { PREDEFINED_RESTAURANTS } from '../data/restaurants';
 
 export const STORAGE_KEYS = {
   CATALOG: 'biroba_veg_catalog_v1',
+  FRUIT_CATALOG: 'biroba_fruit_catalog_v1',
   RECORDS: 'biroba_invoice_records_v1',
   CUSTOM_CUSTOMERS: 'biroba_custom_customers_v2',
   ACTIVE_DRAFT: 'biroba_active_bill_draft_v2',
@@ -69,14 +70,31 @@ export function saveCatalog(catalog) {
   } catch (e) {}
 }
 
+export function loadFruitCatalog() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FRUIT_CATALOG);
+    if (!raw) return DEFAULT_FRUIT_CATALOG;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_FRUIT_CATALOG;
+  } catch (e) {
+    return DEFAULT_FRUIT_CATALOG;
+  }
+}
+
+export function saveFruitCatalog(catalog) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.FRUIT_CATALOG, JSON.stringify(catalog));
+  } catch (e) {}
+}
+
 export function loadRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.RECORDS);
-    if (!raw) return [SAMPLE_BT_INVOICE];
+    if (!raw) return [SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [SAMPLE_BT_INVOICE];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
   } catch (e) {
-    return [SAMPLE_BT_INVOICE];
+    return [SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
   }
 }
 
@@ -167,14 +185,16 @@ export function computeRecordGrandTotal(rec) {
 }
 
 export function formatRecordForWhatsApp(rec, catalog) {
+  const isFruit = rec.billCategory === 'FRUITS';
   const lines = [
-    '🥦 *BIROBA VEGETABLE SUPPLIERS*',
+    isFruit ? '🍎 *BIROBA FRUIT INVOICE*' : '🥦 *BIROBA VEGETABLE SUPPLIERS*',
     '📍 Old Bhaji Market, Byculla, Mumbai-27',
-    '📞 Prop.: Birappa B. Nigadi (9892406958)',
+    '📞 Prop.: Birappa B. Nigadi (9892406958 / 8451869058)',
     '━━━━━━━━━━━━━━━━━━━━',
     `🧾 *Bill No:* #${rec.invoiceNo || '-'}`,
     `📅 *Date:* ${formatDateDisplay(rec.date)}`,
     `🏢 *M/s:* *${rec.customerName || 'Customer'}*`,
+    `🏷️ *Type:* ${isFruit ? 'Fresh Fruits Slip' : 'Vegetable Slip'}`,
     '━━━━━━━━━━━━━━━━━━━━'
   ];
   let idx = 0;

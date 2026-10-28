@@ -23,7 +23,8 @@ function approxPdfTextWidth(text, size, isBold) {
   return w * size;
 }
 
-export function generateVectorInvoicePdfBytes({ invoiceNo, customerName, date, paymentStatus, tempoHire, grandTotal, itemsList }) {
+export function generateVectorInvoicePdfBytes({ invoiceNo, customerName, date, paymentStatus, tempoHire, grandTotal, itemsList, billCategory }) {
+  const isFruit = billCategory === 'FRUITS';
   const dateStr = formatDateDisplay(date);
   const rows = itemsList.map((item, idx) => ({
     no: `${idx + 1}.`,
@@ -64,13 +65,16 @@ export function generateVectorInvoicePdfBytes({ invoiceNo, customerName, date, p
 
   drawText('BIROBA VEGETABLE SUPPLIERS', pageW / 2, 68, 'F2', 19, 0.784, 0.118, 0.118, 'center');
   drawText('ALL KINDS OF FRESH VEGETABLE & FRUITS WHOLESALE SUPPLIERS', pageW / 2, 84, 'F2', 9.5, 0.086, 0.396, 0.204, 'center');
-  drawText('Old Bhaji Market Byculla Mumbai-400 027 | M.: 9892406958 / 7400106277', pageW / 2, 98, 'F1', 9.5, 0.086, 0.396, 0.204, 'center');
+  drawText('Old Bhaji Market Byculla Mumbai-400 027 | M.: 9892406958 / 8451869058', pageW / 2, 98, 'F1', 9.5, 0.086, 0.396, 0.204, 'center');
   drawText('Prop.: Birappa B. Nigadi', pageW / 2, 114, 'F2', 11.5, 0.784, 0.118, 0.118, 'center');
 
   ops.push(`0.086 0.396 0.204 RG 1.5 w 34 ${toPdfY(124)} m ${(pageW - 34).toFixed(2)} ${toPdfY(124)} l S`);
 
   drawText('No. :', 36, 144, 'F2', 11, 0.086, 0.396, 0.204, 'left');
   drawText(invoiceNo, 68, 144, 'F2', 12, 0.06, 0.09, 0.16, 'left');
+  if (isFruit) {
+    drawText('[ FRUIT INVOICE SLIP ]', pageW / 2, 144, 'F2', 10, 0.784, 0.118, 0.118, 'center');
+  }
   drawText(`Date : ${dateStr}`, pageW - 36, 144, 'F2', 11, 0.086, 0.396, 0.204, 'right');
 
   drawText('M/s. :', 36, 166, 'F2', 11, 0.086, 0.396, 0.204, 'left');
@@ -166,7 +170,8 @@ export function generateVectorStatementPdfBytes({
   fromDate,
   toDate,
   records = [],
-  catalog = []
+  catalog = [],
+  categoryFilter = 'ALL'
 }) {
   const fromStr = fromDate ? formatDateDisplay(fromDate) : 'Start';
   const toStr = toDate ? formatDateDisplay(toDate) : formatDateDisplay(getTodayISO());
@@ -184,6 +189,7 @@ export function generateVectorStatementPdfBytes({
     if (isUnpaid) totalUnpaid += amt;
     else totalPaid += amt;
 
+    const isFruit = rec.billCategory === 'FRUITS';
     let itemsSummary = '-';
     if (rec.items) {
       const names = [];
@@ -204,7 +210,8 @@ export function generateVectorStatementPdfBytes({
         });
       }
       if (names.length > 0) {
-        itemsSummary = names.length <= 4 ? names.join(', ') : `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+        const joined = names.length <= 4 ? names.join(', ') : `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+        itemsSummary = categoryFilter === 'ALL' ? `[${isFruit ? 'Fruit' : 'Veg'}] ${joined}` : joined;
       }
     }
 
@@ -257,10 +264,10 @@ export function generateVectorStatementPdfBytes({
   drawText('|| Shri Swami Samarth Prasanna ||', pageW / 2, 44, 'F2', 8.5, 0.086, 0.396, 0.204, 'center');
   drawText('|| Shri Balaji Prasanna ||', pageW - 36, 44, 'F2', 8.5, 0.086, 0.396, 0.204, 'right');
 
-  // 3. Biroba Vegetable Suppliers Header
+  // 3. Biroba Suppliers Header
   drawText('BIROBA VEGETABLE SUPPLIERS', pageW / 2, 68, 'F2', 19, 0.784, 0.118, 0.118, 'center');
   drawText('ALL KINDS OF FRESH VEGETABLE & FRUITS WHOLESALE SUPPLIERS', pageW / 2, 84, 'F2', 9.5, 0.086, 0.396, 0.204, 'center');
-  drawText('Old Bhaji Market Byculla Mumbai-400 027 | M.: 9892406958 / 7400106277', pageW / 2, 98, 'F1', 9.5, 0.086, 0.396, 0.204, 'center');
+  drawText('Old Bhaji Market Byculla Mumbai-400 027 | M.: 9892406958 / 8451869058', pageW / 2, 98, 'F1', 9.5, 0.086, 0.396, 0.204, 'center');
   drawText('Prop.: Birappa B. Nigadi', pageW / 2, 114, 'F2', 11.5, 0.784, 0.118, 0.118, 'center');
 
   ops.push(`0.086 0.396 0.204 RG 1.5 w 34 ${toPdfY(122)} m ${(pageW - 34).toFixed(2)} ${toPdfY(122)} l S`);
@@ -268,7 +275,11 @@ export function generateVectorStatementPdfBytes({
   // 4. Statement Title Banner
   const bannerW = pageW - 68;
   ops.push(`0.122 0.435 0.263 rg 34 ${toPdfY(148)} ${bannerW.toFixed(2)} 22 re f`);
-  drawText('STATEMENT OF ACCOUNT / BILLING LEDGER', pageW / 2, 142, 'F2', 11, 1, 1, 1, 'center');
+  let statementTitle = 'STATEMENT OF ACCOUNT / BILLING LEDGER';
+  if (categoryFilter === 'FRUITS') statementTitle = 'STATEMENT OF ACCOUNT / FRUITS LEDGER';
+  else if (categoryFilter === 'VEGETABLES') statementTitle = 'STATEMENT OF ACCOUNT / VEGETABLES LEDGER';
+  else statementTitle = 'STATEMENT OF ACCOUNT / COMBINED LEDGER (VEG & FRUITS)';
+  drawText(statementTitle, pageW / 2, 142, 'F2', 11, 1, 1, 1, 'center');
 
   // 5. Customer & Period Info
   drawText('M/s. (Restaurant) :', 36, 168, 'F2', 10, 0.086, 0.396, 0.204, 'left');

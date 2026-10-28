@@ -15,6 +15,7 @@ export default function RecordsView({
 }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL'); // ALL, VEGETABLES, FRUITS
 
   let totalBilling = 0;
   let unpaid = 0;
@@ -30,6 +31,8 @@ export default function RecordsView({
   const filtered = records.filter(r => {
     if (statusFilter === 'Credit / Unpaid' && r.paymentStatus !== 'Credit / Unpaid') return false;
     if (statusFilter === 'Paid' && r.paymentStatus === 'Credit / Unpaid') return false;
+    if (categoryFilter === 'VEGETABLES' && r.billCategory === 'FRUITS') return false;
+    if (categoryFilter === 'FRUITS' && r.billCategory !== 'FRUITS') return false;
     if (search) {
       const q = search.trim().toLowerCase();
       const matchInv = String(r.invoiceNo || '').toLowerCase().includes(q);
@@ -159,6 +162,15 @@ export default function RecordsView({
             <option value="Credit / Unpaid">Credit / Unpaid Only</option>
             <option value="Paid">Paid Only</option>
           </select>
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-semibold"
+          >
+            <option value="ALL">All Categories (Veg &amp; Fruit)</option>
+            <option value="VEGETABLES">🥬 Vegetables Only</option>
+            <option value="FRUITS">🍎 Fruits Only</option>
+          </select>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={exportCSV} className="px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition flex items-center gap-1.5">
@@ -199,7 +211,20 @@ export default function RecordsView({
 
                 return (
                   <tr key={rec.recordId} className="hover:bg-slate-50 transition border-b border-slate-100">
-                    <td className="py-2.5 px-4 font-bold text-slate-800">#{rec.invoiceNo || '-'}</td>
+                    <td className="py-2.5 px-4 font-bold text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <span>#{rec.invoiceNo || '-'}</span>
+                        {rec.billCategory === 'FRUITS' ? (
+                          <span className="bg-red-50 text-red-700 border border-red-200 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                            🍎 Fruit
+                          </span>
+                        ) : (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                            🥬 Veg
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2.5 px-4 text-slate-600 font-semibold">{formatDateDisplay(rec.date)}</td>
                     <td className="py-2.5 px-4 font-bold text-slate-900">{rec.customerName || '-'}</td>
                     <td className="py-2.5 px-4 text-center">
