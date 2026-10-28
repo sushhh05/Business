@@ -688,13 +688,6 @@ export default function BillEntry({
               <span className="bill-green font-bold shrink-0">M/s. :</span>
               <span className="font-extrabold text-slate-900 text-sm sm:text-base border-b-2 border-emerald-700/80 flex-1 px-2 pb-0.5 truncate">{customerName || '____________________'}</span>
             </div>
-            {isFruit && (
-              <div className="text-center py-0.5">
-                <span className="inline-block bg-red-100 text-red-800 border border-red-300 font-extrabold text-[9px] sm:text-xs px-2.5 py-0.5 rounded-md tracking-wider uppercase shadow-xs">
-                  🍎 FRUIT INVOICE SLIP
-                </span>
-              </div>
-            )}
           </div>
 
           <div className="w-full overflow-hidden">

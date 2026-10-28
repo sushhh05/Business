@@ -197,14 +197,6 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
   ctx.lineTo(150, metaY + 5);
   ctx.stroke();
 
-  // Fruit or Vegetable Badge in middle
-  if (rec.billCategory === 'FRUITS') {
-    ctx.fillStyle = '#c81e1e';
-    ctx.font = '800 11px "Inter", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('🍎 [ FRUIT BILL ]', W / 2, metaY);
-  }
-
   // Date
   ctx.fillStyle = '#166534';
   ctx.font = '800 12px "Inter", sans-serif';

@@ -72,9 +72,6 @@ export function generateVectorInvoicePdfBytes({ invoiceNo, customerName, date, p
 
   drawText('No. :', 36, 144, 'F2', 11, 0.086, 0.396, 0.204, 'left');
   drawText(invoiceNo, 68, 144, 'F2', 12, 0.06, 0.09, 0.16, 'left');
-  if (isFruit) {
-    drawText('[ FRUIT INVOICE SLIP ]', pageW / 2, 144, 'F2', 10, 0.784, 0.118, 0.118, 'center');
-  }
   drawText(`Date : ${dateStr}`, pageW - 36, 144, 'F2', 11, 0.086, 0.396, 0.204, 'right');
 
   drawText('M/s. :', 36, 166, 'F2', 11, 0.086, 0.396, 0.204, 'left');
