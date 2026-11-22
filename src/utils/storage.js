@@ -11,7 +11,7 @@ export const COMPANY_INFO = {
 };
 
 export const STORAGE_KEYS = {
-  CATALOG: 'biroba_veg_catalog_v3',
+  CATALOG: 'biroba_veg_catalog_v5',
   FRUIT_CATALOG: 'biroba_fruit_catalog_v3',
   RECORDS: 'biroba_invoice_records_v3',
   CUSTOM_CUSTOMERS: 'biroba_custom_customers_v3',
@@ -74,9 +74,39 @@ export function saveLastActiveTab(tab) {
 export function loadCatalog() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CATALOG);
-    if (!raw) return DEFAULT_CATALOG;
+    if (!raw) {
+      // Migrate any custom products created by the user in previous versions
+      const oldRaw = localStorage.getItem('biroba_veg_catalog_v4') || localStorage.getItem('biroba_veg_catalog_v3') || localStorage.getItem('biroba_veg_catalog_v2');
+      if (oldRaw) {
+        try {
+          const oldList = JSON.parse(oldRaw);
+          if (Array.isArray(oldList)) {
+            const defaultIds = new Set(DEFAULT_CATALOG.map(item => item.id));
+            const customItems = oldList.filter(item => !defaultIds.has(item.id));
+            const merged = [...DEFAULT_CATALOG, ...customItems];
+            localStorage.setItem(STORAGE_KEYS.CATALOG, JSON.stringify(merged));
+            return merged;
+          }
+        } catch (e) {}
+      }
+      return DEFAULT_CATALOG;
+    }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_CATALOG;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Ensure DEFAULT_CATALOG order is preserved while keeping any custom items at the bottom
+      const seenIds = new Set();
+      const orderedDefaults = [];
+
+      for (const defItem of DEFAULT_CATALOG) {
+        const existing = parsed.find(p => p.id === defItem.id);
+        orderedDefaults.push(existing ? { ...defItem, ...existing } : defItem);
+        seenIds.add(defItem.id);
+      }
+
+      const customItems = parsed.filter(p => !seenIds.has(p.id));
+      return [...orderedDefaults, ...customItems];
+    }
+    return DEFAULT_CATALOG;
   } catch (e) {
     return DEFAULT_CATALOG;
   }
