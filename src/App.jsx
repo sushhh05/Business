@@ -20,10 +20,10 @@ import {
   saveLastActiveTab,
   getAllRestaurants,
   getTodayISO,
-  SAMPLE_POWAI_INVOICE,
   SAMPLE_BT_INVOICE,
   SAMPLE_LOCOMO_FRUIT_INVOICE,
-  computeRecordGrandTotal
+  computeRecordGrandTotal,
+  DEFAULT_CATALOG
 } from './utils/storage';
 import { saveInvoiceToSheet } from './utils/sheetsApi';
 
@@ -35,10 +35,51 @@ export default function App() {
   const [records, setRecords] = useState(loadRecords);
   const [customCustomers, setCustomCustomers] = useState(loadCustomCustomers);
 
-  // Active bill draft state with persistence: loads in-progress draft from localStorage
+  // Helper to construct a fresh clean blank invoice
+  function createBlankBillData(vegCatalog = DEFAULT_CATALOG, recs = records, catType = 'VEGETABLES') {
+    let max = 100;
+    (recs || []).forEach(r => {
+      const p = parseInt(String(r.invoiceNo).replace(/\D/g, ''), 10);
+      if (!isNaN(p) && p > max) max = p;
+    });
+
+    const blankItems = {};
+    (vegCatalog || []).forEach(v => {
+      blankItems[v.id] = {
+        weight: '',
+        rate: v.defaultRate || '',
+        amount: '',
+        mode: v.mode || 'per_kg',
+        unit: v.unit || (v.mode === 'per_100' ? '100 pcs' : 'kg')
+      };
+    });
+
+    return {
+      recordId: `rec_${Date.now()}`,
+      invoiceNo: String(max + 1),
+      customerName: '',
+      date: getTodayISO(),
+      billCategory: catType,
+      paymentStatus: 'Credit / Unpaid',
+      tempoHire: '',
+      items: blankItems
+    };
+  }
+
+  // Active bill draft state: Opens to a fresh blank invoice by default (no prefilled demo items)
   const [billData, setBillData] = useState(() => {
-    const defaultInitial = records[0] || SAMPLE_POWAI_INVOICE;
-    return loadActiveDraft(defaultInitial);
+    const freshBlank = createBlankBillData(DEFAULT_CATALOG, records, 'VEGETABLES');
+    const loaded = loadActiveDraft(freshBlank);
+    if (
+      !loaded ||
+      loaded.recordId === 'rec_powai_2211' ||
+      loaded.invoiceNo === '2211' ||
+      loaded.customerName === 'Powai (पवई)' ||
+      (loaded.customerName === 'SAI DARSHAN' && String(loaded.recordId || '').startsWith('rec_powai'))
+    ) {
+      return freshBlank;
+    }
+    return loaded;
   });
 
   // Modal states

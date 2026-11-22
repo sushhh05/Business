@@ -15,7 +15,7 @@ export const STORAGE_KEYS = {
   FRUIT_CATALOG: 'biroba_fruit_catalog_v3',
   RECORDS: 'biroba_invoice_records_v3',
   CUSTOM_CUSTOMERS: 'biroba_custom_customers_v3',
-  ACTIVE_DRAFT: 'biroba_active_bill_draft_v4',
+  ACTIVE_DRAFT: 'biroba_active_bill_draft_v5',
   LAST_ACTIVE_TAB: 'biroba_last_active_tab_v1'
 };
 
@@ -25,6 +25,16 @@ export function loadActiveDraft(fallback) {
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && parsed.items && typeof parsed.items === 'object') {
+      // Discard any legacy demo/sample invoice
+      if (
+        parsed.recordId === 'rec_powai_2211' ||
+        parsed.invoiceNo === '2211' ||
+        parsed.customerName === 'Powai (पवई)' ||
+        (parsed.customerName === 'SAI DARSHAN' && String(parsed.recordId || '').startsWith('rec_powai'))
+      ) {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_DRAFT);
+        return fallback;
+      }
       return parsed;
     }
     return fallback;
@@ -98,11 +108,14 @@ export function saveFruitCatalog(catalog) {
 export function loadRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.RECORDS);
-    if (!raw) return [SAMPLE_POWAI_INVOICE, SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
+    if (!raw) return [SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [SAMPLE_POWAI_INVOICE, SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.filter(r => r.recordId !== 'rec_powai_2211' && r.invoiceNo !== '2211' && r.customerName !== 'Powai (पवई)');
+    }
+    return [SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
   } catch (e) {
-    return [SAMPLE_POWAI_INVOICE, SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
+    return [SAMPLE_BT_INVOICE, SAMPLE_LOCOMO_FRUIT_INVOICE];
   }
 }
 
