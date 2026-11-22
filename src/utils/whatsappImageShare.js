@@ -1,43 +1,35 @@
-import { formatDateDisplay, formatMoney, isItemOrdered, formatWeightClean } from './storage';
+import {
+  formatDateDisplay,
+  formatDateLong,
+  formatMoney,
+  isItemOrdered,
+  formatWeightClean,
+  getItemUnit,
+  numberToIndianWords,
+  COMPANY_INFO
+} from './storage';
 
 /**
- * Renders a pixel-perfect, vector-sharp invoice directly onto an HTML5 Canvas,
- * matching the precision of the PDF invoice with zero text/line overlap.
+ * Renders a pixel-perfect, clean modern corporate invoice directly onto an HTML5 Canvas,
+ * exactly matching c:\Users\susha\Downloads\INVOICE.pdf with zero line/text overlap.
  *
  * @param {Object} rec - Invoice record data
- * @param {Array} catalog - Vegetable catalog
+ * @param {Array} catalog - Vegetable/fruit catalog
  * @returns {Promise<Blob>} PNG Blob of the invoice
  */
 export async function generateInvoiceCanvasBlob(rec, catalog) {
-  // Ensure custom web fonts are loaded
   if (document.fonts && document.fonts.ready) {
     try {
       await document.fonts.ready;
     } catch (_) {}
   }
 
-  // Pre-load logo image
-  const logo = new Image();
-  logo.crossOrigin = 'anonymous';
-  logo.src = '/icon-192.png';
-  await new Promise(r => {
-    if (logo.complete && logo.naturalWidth > 0) return r();
-    logo.onload = r;
-    logo.onerror = () => {
-      // Fallback logo
-      logo.src = '/Vegetable.jpg';
-      logo.onload = r;
-      logo.onerror = r;
-    };
-  });
-
   const {
-    invoiceNo = '101',
+    invoiceNo = '2211',
     date = '',
-    customerName = 'Customer',
+    customerName = 'SAI DARSHAN',
     items = {},
-    tempoHire = 0,
-    paymentStatus = 'Credit / Unpaid'
+    tempoHire = 0
   } = rec;
 
   const orderedItems = (catalog || [])
@@ -50,11 +42,14 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
         weight: it.weight,
         rate: it.rate,
         amount: it.amount,
-        mode: it.mode || v.mode
+        mode: it.mode || v.mode,
+        unit: getItemUnit(v, it)
       };
     });
 
-  const rows = orderedItems.length > 0 ? orderedItems : [{ name: 'No items ordered', weight: '-', rate: '-', amount: '0' }];
+  const rows = orderedItems.length > 0
+    ? orderedItems
+    : [{ name: 'No items ordered', weight: '-', unit: 'kg', rate: '-', amount: '0' }];
 
   let subtotal = 0;
   orderedItems.forEach(it => {
@@ -66,26 +61,27 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
 
   // Geometry
   const scale = 2; // 2x Retina resolution
-  const W = 640;
-  const tL = 28;
-  const tR = 612;
-  const tW = tR - tL; // 584px
+  const W = 680;
+  const tL = 36;
+  const tR = W - 36;
+  const tW = tR - tL; // 608px
 
   // Column boundaries
-  const c1 = tL + 46;  // 74  (No. column: 46px)
-  const c2 = tL + 306; // 334 (Particulars column: 260px)
-  const c3 = tL + 396; // 424 (Weight column: 90px)
-  const c4 = tL + 476; // 504 (Rate column: 80px)
-                       // Amount column: 108px (to 612)
+  const c1 = tL + 42;  // # (42px)
+  const c2 = tL + 300; // Item (258px)
+  const c3 = tL + 375; // Qty (75px)
+  const c4 = tL + 440; // Unit (65px)
+  const c5 = tL + 520; // Rate (80px)
+                       // Amount: c5 to tR (88px)
 
-  const thH = 30;
-  const rowH = 25;
-  const tempoH = 26;
-  const totH = 32;
+  const thH = 28;
+  const rowH = 24;
 
-  const tableTopY = 208;
-  const tableBottomY = tableTopY + thH + (rows.length * rowH) + tempoH + totH;
-  const totalH = tableBottomY + 54;
+  const topMetaH = 190;
+  const tableTopY = topMetaH;
+  const tableH = thH + (rows.length * rowH);
+  const bottomBoxH = 175;
+  const totalH = tableTopY + tableH + bottomBoxH;
 
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(W * scale);
@@ -98,315 +94,255 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, totalH);
 
-  // Outer Decorative Double Border
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 2.5;
-  ctx.strokeRect(10, 10, W - 20, totalH - 20);
-
+  // Subtle clean border
+  ctx.strokeStyle = '#e2e8f0';
   ctx.lineWidth = 1;
-  ctx.strokeRect(14, 14, W - 28, totalH - 28);
+  ctx.strokeRect(12, 12, W - 24, totalH - 24);
 
-  // 1. Top Blessings (Devanagari)
-  ctx.fillStyle = '#166534';
-  ctx.font = '600 11px "Noto Sans Devanagari", "Inter", sans-serif';
-  ctx.textBaseline = 'middle';
-
+  // 1. Top small label
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '600 9px "Inter", sans-serif';
+  ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
-  ctx.fillText('|| श्री महालिंगराया प्रसन्न ||', 24, 30);
+  ctx.fillText('INVOICE', tL, 30);
 
-  ctx.textAlign = 'center';
-  ctx.fillText('|| श्री स्वामी समर्थ प्रसन्न ||', W / 2, 30);
-
-  ctx.textAlign = 'right';
-  ctx.fillText('|| श्री बालाजी प्रसन्न ||', W - 24, 30);
-
-  // 2. Logo
-  const logoX = 26;
-  const logoY = 48;
-  const logoSize = 64;
-
-  // Draw logo image with rounded clip
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-  if (logo.complete && logo.naturalWidth > 0) {
-    ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
-  } else {
-    ctx.fillStyle = '#ecf7f0';
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // Subtle border around logo
-  ctx.strokeStyle = '#86efac';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // 3. Header Texts (Centered)
-  const textCenterX = 350;
-
-  // Title
-  ctx.fillStyle = '#c81e1e';
-  ctx.font = '900 22px "Inter", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('BIROBA VEGETABLE SUPPLIERS', textCenterX, 58);
-
-  // Subtitle
-  ctx.fillStyle = '#166534';
-  ctx.font = '700 10.5px "Inter", sans-serif';
-  ctx.fillText('ALL KINDS OF FRESH VEGETABLE & FRUITS WHOLESALE SUPPLIERS', textCenterX, 76);
-
-  // Address & Contacts
-  ctx.fillStyle = '#14532d';
-  ctx.font = '600 10px "Inter", sans-serif';
-  ctx.fillText('Old Bhaji Market Byculla Mumbai-400 027 • M.: 9892406958 / 8451869058', textCenterX, 92);
-
-  // Prop.
-  ctx.fillStyle = '#c81e1e';
-  ctx.font = '800 12.5px "Inter", sans-serif';
-  ctx.fillText('Prop.: Birappa B. Nigadi', textCenterX, 110);
-
-  // 4. Header Divider Line
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(24, 126);
-  ctx.lineTo(W - 24, 126);
-  ctx.stroke();
-
-  // 5. Invoice Metadata (No. & Date)
-  const metaY = 148;
-  ctx.fillStyle = '#166534';
-  ctx.font = '800 12px "Inter", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('No. :', 28, metaY);
-
+  // 2. Large INVOICE Heading
   ctx.fillStyle = '#0f172a';
-  ctx.font = '800 13px "Inter", sans-serif';
-  ctx.fillText(invoiceNo || '-', 64, metaY);
+  ctx.font = 'bold 26px "Playfair Display", Georgia, serif';
+  ctx.fillText('INVOICE', tL, 46);
 
-  // Underline for No.
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 0.8;
+  // 3. Company Information Block
+  ctx.font = 'bold 12.5px "Inter", sans-serif';
+  ctx.fillText(COMPANY_INFO.name, tL, 82);
+  const compNameW = ctx.measureText(COMPANY_INFO.name).width;
+
+  ctx.font = 'normal 12px "Inter", sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.fillText(` ${COMPANY_INFO.tagline}`, tL + compNameW, 82);
+
+  ctx.fillStyle = '#475569';
+  ctx.font = 'normal 11.5px "Inter", sans-serif';
+  ctx.fillText(`${COMPANY_INFO.address} Phone: ${COMPANY_INFO.phone}`, tL, 100);
+
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '500 11.5px "Inter", sans-serif';
+  ctx.fillText(`Proprietor: ${COMPANY_INFO.proprietor}`, tL, 118);
+
+  // Horizontal Rule 1
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(60, metaY + 5);
-  ctx.lineTo(150, metaY + 5);
+  ctx.moveTo(tL, 136);
+  ctx.lineTo(tR, 136);
   ctx.stroke();
 
-  // Date
-  ctx.fillStyle = '#166534';
-  ctx.font = '800 12px "Inter", sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText('Date :', W - 145, metaY);
-
+  // 4. Invoice Metadata
+  const metaY = 144;
   ctx.fillStyle = '#0f172a';
-  ctx.font = '800 13px "Inter", sans-serif';
-  ctx.fillText(formatDateDisplay(date), W - 28, metaY);
+  ctx.font = 'bold 11.5px "Inter", sans-serif';
+  ctx.fillText('Invoice No.:', tL, metaY);
+  ctx.font = 'normal 11.5px "Inter", sans-serif';
+  ctx.fillText(` ${invoiceNo || '—'}`, tL + 74, metaY);
 
-  // Underline for Date
+  ctx.font = 'bold 11.5px "Inter", sans-serif';
+  ctx.fillText('Invoice Date:', tL, metaY + 16);
+  ctx.font = 'normal 11.5px "Inter", sans-serif';
+  ctx.fillText(` ${formatDateLong(date) || formatDateDisplay(date)}`, tL + 82, metaY + 16);
+
+  ctx.font = 'bold 11.5px "Inter", sans-serif';
+  ctx.fillText('Bill To (M/s):', tL, metaY + 32);
+  ctx.font = 'bold 12px "Inter", "Noto Sans Devanagari", sans-serif';
+  ctx.fillText(` ${customerName || '—'}`, tL + 82, metaY + 32);
+
+  // Horizontal Rule 2
   ctx.beginPath();
-  ctx.moveTo(W - 140, metaY + 5);
-  ctx.lineTo(W - 28, metaY + 5);
+  ctx.moveTo(tL, metaY + 48);
+  ctx.lineTo(tR, metaY + 48);
   ctx.stroke();
 
-  // 6. Customer Name Row (M/s.)
-  const custY = 176;
-  ctx.fillStyle = '#166534';
-  ctx.font = '800 13px "Inter", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('M/s. :', 28, custY);
-
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 15px "Inter", sans-serif';
-  ctx.fillText(customerName.toUpperCase(), 74, custY);
-
-  // Underline for M/s.
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(70, custY + 5);
-  ctx.lineTo(W - 28, custY + 5);
-  ctx.stroke();
-
-  // 7. Table Header
-  let curY = tableTopY;
-  ctx.fillStyle = '#ecf7f0';
+  // 5. Table Header
+  const curY = tableTopY;
+  ctx.fillStyle = '#f8fafc';
   ctx.fillRect(tL, curY, tW, thH);
 
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#e2e8f0';
   ctx.strokeRect(tL, curY, tW, thH);
 
-  ctx.fillStyle = '#14532d';
-  ctx.font = '800 11px "Inter", sans-serif';
+  // Header column lines
+  [c1, c2, c3, c4, c5].forEach(x => {
+    ctx.beginPath();
+    ctx.moveTo(x, curY);
+    ctx.lineTo(x, curY + thH);
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = '#475569';
+  ctx.font = '600 11px "Inter", sans-serif';
   ctx.textBaseline = 'middle';
 
+  const thMid = curY + thH / 2;
   ctx.textAlign = 'center';
-  ctx.fillText('NO.', (tL + c1) / 2, curY + thH / 2);
+  ctx.fillText('#', (tL + c1) / 2, thMid);
 
   ctx.textAlign = 'left';
-  ctx.fillText('PARTICULARS', c1 + 10, curY + thH / 2);
+  ctx.fillText('Item', c1 + 8, thMid);
+
+  ctx.textAlign = 'right';
+  ctx.fillText('Qty', c3 - 8, thMid);
 
   ctx.textAlign = 'center';
-  ctx.fillText('WEIGHT', (c2 + c3) / 2, curY + thH / 2);
+  ctx.fillText('Unit', (c3 + c4) / 2, thMid);
 
-  // RATE & PER
-  ctx.fillText('RATE', (c3 + c4) / 2, curY + (thH / 2) - 5);
-  ctx.font = '700 8.5px "Inter", sans-serif';
-  ctx.fillText('PER', (c3 + c4) / 2, curY + (thH / 2) + 6);
-
-  // AMOUNT & RS.
-  ctx.font = '800 11px "Inter", sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('AMOUNT', tR - 10, curY + (thH / 2) - 5);
-  ctx.font = '700 8.5px "Inter", sans-serif';
-  ctx.fillText('RS.', tR - 10, curY + (thH / 2) + 6);
+  ctx.fillText('Rate (Rs)', c5 - 8, thMid);
 
-  curY += thH;
+  ctx.textAlign = 'right';
+  ctx.fillText('Amount (Rs)', tR - 8, thMid);
 
-  // 8. Item Rows
+  // 6. Table Rows
+  let rowY = curY + thH;
+
   rows.forEach((r, idx) => {
-    // Alternating background
-    if (idx % 2 === 1) {
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(tL, curY, tW, rowH);
-    }
-
-    // Bottom row line
-    ctx.strokeStyle = '#86efac';
-    ctx.lineWidth = 0.8;
+    // Cell border bottom
+    ctx.strokeStyle = '#e2e8f0';
     ctx.beginPath();
-    ctx.moveTo(tL, curY + rowH);
-    ctx.lineTo(tR, curY + rowH);
+    ctx.moveTo(tL, rowY + rowH);
+    ctx.lineTo(tR, rowY + rowH);
     ctx.stroke();
 
-    const textY = curY + (rowH / 2);
+    // Vertical lines
+    ctx.strokeRect(tL, rowY, tW, rowH);
+    [c1, c2, c3, c4, c5].forEach(x => {
+      ctx.beginPath();
+      ctx.moveTo(x, rowY);
+      ctx.lineTo(x, rowY + rowH);
+      ctx.stroke();
+    });
 
-    // No.
-    ctx.fillStyle = '#475569';
-    ctx.font = '700 10.5px "Inter", sans-serif';
+    const mid = rowY + rowH / 2;
+
+    // #
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'normal 11px "Inter", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`${idx + 1}.`, (tL + c1) / 2, textY);
+    ctx.fillText(String(idx + 1), (tL + c1) / 2, mid);
 
-    // Particulars
+    // Item
     ctx.fillStyle = '#0f172a';
-    ctx.font = '700 11.5px "Inter", sans-serif';
+    ctx.font = '500 11.5px "Inter", sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(r.name, c1 + 10, textY);
+    ctx.fillText(r.name, c1 + 8, mid);
 
-    // Weight
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '800 11.5px "Inter", sans-serif';
+    // Qty
+    ctx.textAlign = 'right';
+    ctx.fillText(formatWeightClean(r.weight), c3 - 8, mid);
+
+    // Unit
+    ctx.fillStyle = '#475569';
     ctx.textAlign = 'center';
-    ctx.fillText(formatWeightClean(r.weight), (c2 + c3) / 2, textY);
+    ctx.fillText(r.unit || 'kg', (c3 + c4) / 2, mid);
 
     // Rate
-    const rateText = r.mode === 'lump_sum' || r.mode === 'free' || !r.rate ? '-' : `${r.rate}${r.mode === 'per_100' ? '/100' : ''}`;
-    ctx.fillStyle = '#334155';
-    ctx.font = '700 11px "Inter", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(rateText, (c3 + c4) / 2, textY);
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'right';
+    const rateStr = r.mode === 'lump_sum' || r.mode === 'free' || !r.rate ? '-' : formatMoney(r.rate);
+    ctx.fillText(rateStr, c5 - 8, mid);
 
     // Amount
-    const amountText = r.mode === 'free' ? '-' : (r.amount ? formatMoney(r.amount) : '-');
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '800 11.5px "Inter", sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(amountText, tR - 10, textY);
+    ctx.font = '600 11.5px "Inter", sans-serif';
+    const amtStr = r.mode === 'free' ? '0' : (r.amount ? formatMoney(r.amount) : '-');
+    ctx.fillText(amtStr, tR - 8, mid);
 
-    curY += rowH;
+    rowY += rowH;
   });
 
-  // 9. Tempo Hire Row
-  ctx.fillStyle = '#f0fdf4';
-  ctx.fillRect(tL, curY, tW, tempoH);
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(tL, curY);
-  ctx.lineTo(tR, curY);
-  ctx.stroke();
-
-  ctx.fillStyle = '#166534';
-  ctx.font = '800 11.5px "Inter", sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText('Tempo Hire', c4 - 10, curY + (tempoH / 2));
-
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '800 12px "Inter", sans-serif';
-  ctx.fillText(tempo > 0 ? formatMoney(tempo) : '-', tR - 10, curY + (tempoH / 2));
-
-  curY += tempoH;
-
-  // 10. Total Row
-  ctx.fillStyle = '#ecfdf5';
-  ctx.fillRect(tL, curY, tW, totH);
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(tL, curY);
-  ctx.lineTo(tR, curY);
-  ctx.stroke();
-
-  ctx.fillStyle = '#166534';
-  ctx.font = '900 14px "Inter", sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText('Total', c4 - 10, curY + (totH / 2));
-
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 15px "Inter", sans-serif';
-  ctx.fillText(formatMoney(grandTotal), tR - 10, curY + (totH / 2));
-
-  curY += totH;
-
-  // 11. Vertical Column Separator Lines & Outer Box for Table
-  ctx.strokeStyle = '#1f6f43';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(tL, tableTopY, tW, curY - tableTopY);
-
-  // Column vertical lines
-  [c1, c2, c3, c4].forEach((x, colIdx) => {
-    // For weight/rate columns, stop before Tempo Hire
-    const bottomY = colIdx >= 1 && colIdx <= 2 ? curY - tempoH - totH : curY;
-    ctx.beginPath();
-    ctx.moveTo(x, tableTopY);
-    ctx.lineTo(x, bottomY);
-    ctx.stroke();
-  });
-
-  // 12. Footer Status & Business Signature
-  const footerY = curY + 22;
-
-  // Status Badge
-  const isPaid = paymentStatus === 'Paid';
-  const badgeText = `Status: ${paymentStatus}`;
-  ctx.font = '700 10.5px "Inter", sans-serif';
-  const badgeW = ctx.measureText(badgeText).width + 16;
-  const badgeH = 22;
-
-  ctx.fillStyle = isPaid ? '#ecfdf5' : '#fef3c7';
-  ctx.strokeStyle = isPaid ? '#86efac' : '#fcd34d';
+  // 7. Divider under table
+  ctx.strokeStyle = '#e2e8f0';
   ctx.lineWidth = 1;
-
-  // Rounded pill for status
   ctx.beginPath();
-  ctx.roundRect ? ctx.roundRect(tL, footerY - (badgeH / 2), badgeW, badgeH, 6) : ctx.rect(tL, footerY - (badgeH / 2), badgeW, badgeH);
-  ctx.fill();
+  ctx.moveTo(tL, rowY + 12);
+  ctx.lineTo(tR, rowY + 12);
   ctx.stroke();
 
-  ctx.fillStyle = isPaid ? '#166534' : '#92400e';
-  ctx.textAlign = 'left';
-  ctx.fillText(badgeText, tL + 8, footerY);
+  // 8. Totals Box (Right Aligned Table)
+  const boxW = 260;
+  const boxL = tR - boxW;
+  let totY = rowY + 22;
 
-  // Business signature
-  ctx.fillStyle = '#c81e1e';
-  ctx.font = '900 12px "Inter", sans-serif';
+  // Subtotal row
+  ctx.fillStyle = '#334155';
+  ctx.font = '600 11.5px "Inter", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Subtotal (Items)', boxL + 6, totY + 8);
   ctx.textAlign = 'right';
-  ctx.fillText('For BIROBA VEGETABLE SUPPLIERS', tR, footerY);
+  ctx.fillText(`Rs ${formatMoney(subtotal)}`, tR - 6, totY + 8);
+
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.beginPath();
+  ctx.moveTo(boxL, totY + 18);
+  ctx.lineTo(tR, totY + 18);
+  ctx.stroke();
+
+  // Tempo Hire row
+  totY += 22;
+  ctx.textAlign = 'left';
+  ctx.fillText('Tempo Hire / Delivery', boxL + 6, totY + 8);
+  ctx.textAlign = 'right';
+  ctx.fillText(`Rs ${formatMoney(tempo)}`, tR - 6, totY + 8);
+
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.beginPath();
+  ctx.moveTo(boxL, totY + 18);
+  ctx.lineTo(tR, totY + 18);
+  ctx.stroke();
+
+  // TOTAL DUE row
+  totY += 22;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(boxL, totY, boxW, 24);
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeRect(boxL, totY, boxW, 24);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 12.5px "Inter", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('TOTAL DUE', boxL + 8, totY + 12);
+  ctx.textAlign = 'right';
+  ctx.fillText(`Rs ${formatMoney(grandTotal)}`, tR - 8, totY + 12);
+
+  // 9. Amount in Words
+  let wordY = totY + 36;
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 11.5px "Inter", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Amount in words:', tL, wordY);
+  ctx.font = 'normal 11.5px "Inter", sans-serif';
+  ctx.fillText(` ${numberToIndianWords(grandTotal)}`, tL + 104, wordY);
+
+  // Divider line
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.beginPath();
+  ctx.moveTo(tL, wordY + 14);
+  ctx.lineTo(tR, wordY + 14);
+  ctx.stroke();
+
+  // 10. Signatory Section
+  const sigY = wordY + 28;
+  ctx.font = 'bold 12px "Inter", sans-serif';
+  ctx.fillText(`For ${COMPANY_INFO.name}`, tL, sigY);
+
+  ctx.font = 'normal 11.5px "Inter", sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText('Authorised Signatory: ______________________', tL, sigY + 18);
+
+  // 11. Footer
+  const footerY = totalH - 24;
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'normal 9px "Inter", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('INVOICE', tL, footerY);
+  ctx.textAlign = 'right';
+  ctx.fillText('Page 1 of 1', tR, footerY);
 
   // Convert canvas to Blob
   return new Promise((resolve, reject) => {
@@ -419,15 +355,13 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
 
 /**
  * Capture an invoice and share as an image directly to WhatsApp.
- * On mobile devices, uses the Web Share API (File Sharing) to open native WhatsApp
- * with the invoice image attached ready to send to any selected contact.
  */
 export async function shareInvoiceAsImage(targetElementOrId, meta = {}, showToast = () => {}) {
   try {
-    const invoiceNo = meta.invoiceNo || '101';
+    const invoiceNo = meta.invoiceNo || '2211';
     const customerName = (meta.customerName || 'Customer').trim();
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `Biroba_Bill_${invoiceNo}_${safeCustomer}.png`;
+    const fileName = `Biroba_Invoice_${invoiceNo}_${safeCustomer}.png`;
 
     showToast('📸 Creating invoice image for WhatsApp...');
 
@@ -452,20 +386,17 @@ export async function shareInvoiceAsImage(targetElementOrId, meta = {}, showToas
         await navigator.share({
           files: [file],
           title: `Invoice #${invoiceNo} - ${customerName}`,
-          text: `Biroba Vegetable Suppliers — Bill #${invoiceNo} for ${customerName}`
+          text: `Biroba Vegetable Suppliers — Invoice #${invoiceNo} for ${customerName}`
         });
         showToast('✅ WhatsApp / Share Sheet opened!');
         return;
       } catch (err) {
-        if (err.name === 'AbortError') {
-          // User cancelled the share dialog
-          return;
-        }
+        if (err.name === 'AbortError') return;
         console.warn('Web Share API error, using fallback:', err);
       }
     }
 
-    // 2. Fallback for Desktop/browsers without file sharing:
+    // 2. Fallback for Desktop/browsers without file sharing
     let copied = false;
     if (navigator.clipboard && window.ClipboardItem) {
       try {
@@ -493,7 +424,7 @@ export async function shareInvoiceAsImage(targetElementOrId, meta = {}, showToas
     window.open(waUrl, '_blank');
 
     if (copied) {
-      showToast('📋 Invoice image copied! In WhatsApp, just press Paste (Ctrl+V) to send.');
+      showToast('📋 Invoice image copied! In WhatsApp, press Paste (Ctrl+V) to send.');
     } else {
       showToast('📥 Invoice image downloaded! Drag or attach it into your WhatsApp chat.');
     }

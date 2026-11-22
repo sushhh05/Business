@@ -80,7 +80,7 @@ function buildItemsSummary(rec, catalog) {
   }).map(v => {
     const it = rec.items[v.id];
     let s = v.name;
-    if (parseFloat(it.weight) > 0) s += `:${it.weight}${it.mode === 'per_100' ? 'pcs' : 'kg'}`;
+    if (parseFloat(it.weight) > 0) s += `:${it.weight}${it.unit || (it.mode === 'per_100' ? 'pcs' : 'kg')}`;
     if (it.rate && it.mode !== 'lump_sum' && it.mode !== 'free') s += `@Rs.${it.rate}`;
     if (parseFloat(it.amount) > 0 && it.mode !== 'free') s += `=Rs.${fmtMoney(it.amount)}`;
     if (it.mode === 'free') s += '(FREE)';

@@ -67,7 +67,7 @@ function buildItemsSummary(rec, catalog) {
   }).map(v => {
     const it = rec.items[v.id];
     let s = v.name;
-    if (parseFloat(it.weight) > 0) s += `:${it.weight}${it.mode === 'per_100' ? 'pcs' : 'kg'}`;
+    if (parseFloat(it.weight) > 0) s += `:${it.weight}${it.unit || (it.mode === 'per_100' ? 'pcs' : 'kg')}`;
     if (it.rate && it.mode !== 'lump_sum' && it.mode !== 'free') s += `@Rs.${it.rate}`;
     if (parseFloat(it.amount) > 0 && it.mode !== 'free') s += `=Rs.${fmtMoney(it.amount)}`;
     if (it.mode === 'free') s += '(FREE)';
@@ -180,6 +180,64 @@ app.post('/api/save-invoice', async (req, res) => {
     console.error('  Sheets error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
+});
+
+app.post('/api/scan-chit', async (req, res) => {
+  const { base64Data, mimeType = 'image/jpeg' } = req.body;
+  if (!base64Data) {
+    return res.status(400).json({ ok: false, error: 'Missing base64Data' });
+  }
+
+  let apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey && fs.existsSync('.env')) {
+    const envContent = fs.readFileSync('.env', 'utf8');
+    const match = envContent.match(/GEMINI_API_KEY=([^\r\n]+)/);
+    if (match) apiKey = match[1].trim();
+  }
+
+  if (!apiKey) {
+    return res.status(500).json({ ok: false, error: 'GEMINI_API_KEY not configured on server' });
+  }
+
+  const prompt = `You are an expert Indian wholesale vegetable and fruit market assistant at Byculla / Dadar Market, Mumbai.
+Inspect this image of an order chit / handwritten paper note.
+1. Detect any customer / hotel name mentioned.
+2. Extract all vegetable/fruit items ordered with numeric quantity and unit (kg, bundle, pkt, 100 pcs, pcs).
+Return strictly valid JSON:
+{
+  "customer": "HOTEL NAME IF FOUND",
+  "rawText": "exact lines of text read from note separated by newlines",
+  "items": [
+    { "rawName": "kobi", "quantity": 4, "unit": "kg" }
+  ]
+}`;
+
+  const models = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+  for (const m of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Data } }] }],
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+        })
+      });
+
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const clean = text.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/i, '').trim();
+        const parsed = JSON.parse(clean);
+        return res.json({ ok: true, data: parsed, modelUsed: m });
+      }
+    } catch (e) {
+      console.warn(`[server /api/scan-chit] Model ${m} error:`, e.message);
+    }
+  }
+
+  res.status(500).json({ ok: false, error: 'Failed to extract items from image using Gemini Vision.' });
 });
 
 app.get('/api/health', (_, res) => res.json({ ok: true, service: 'Biroba Sheets Sync' }));

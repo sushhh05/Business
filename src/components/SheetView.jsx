@@ -341,12 +341,12 @@ export default function SheetView({
                 {formatDateDisplay(fromDate) || 'Start'} to {formatDateDisplay(toDate) || 'Today'}
               </span>
             )}
-            <span className="bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded">
-              Total: ₹{formatMoney(totalRevenue)}
+            <span className="bg-slate-100 text-slate-900 font-bold px-2 py-0.5 rounded">
+              Total: Rs {formatMoney(totalRevenue)}
             </span>
             {totalUnpaid > 0 && (
               <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded border border-amber-300">
-                Due: ₹{formatMoney(totalUnpaid)}
+                Due: Rs {formatMoney(totalUnpaid)}
               </span>
             )}
           </div>

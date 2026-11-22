@@ -1,26 +1,29 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   formatDateDisplay,
+  formatDateLong,
   formatMoney,
   formatWeightClean,
+  getItemUnit,
   isItemOrdered,
   computeRowAmount,
-  formatRecordForWhatsApp,
-  openWhatsAppShare
+  numberToIndianWords,
+  COMPANY_INFO,
+  getCustomerLastRates
 } from '../utils/storage';
 import { shareInvoiceAsImage } from '../utils/whatsappImageShare';
+import { ScanSlipModal } from './ScanSlipModal';
 
 export default function BillEntry({
   catalog,
   billData,
   setBillData,
   restaurantsList,
+  records = [],
   onOpenAddCustomCustomer,
   onOpenAddVegetable,
   onSaveBill,
   onNewBlankBill,
-  onLoadSampleBill,
-  onLoadFruitSampleBill,
   onOpenExportModal,
   mobileTab = 'EDIT',
   setMobileTab,
@@ -29,10 +32,11 @@ export default function BillEntry({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('ALL');
   const [showAllInPreview, setShowAllInPreview] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const rowRefs = useRef({});
 
   const isFruit = billData.billCategory === 'FRUITS';
-  const { invoiceNo, customerName, date, paymentStatus, tempoHire, items } = billData;
+  const { invoiceNo, customerName, date, paymentStatus, tempoHire, items = {} } = billData;
 
   // Filter catalog rows
   const filteredCatalog = catalog.filter((veg, idx) => {
@@ -65,11 +69,12 @@ export default function BillEntry({
         weight: '',
         rate: vegMeta?.defaultRate || '',
         amount: '',
-        mode: vegMeta?.mode || 'per_kg'
+        mode: vegMeta?.mode || 'per_kg',
+        unit: vegMeta?.unit || (vegMeta?.mode === 'per_100' ? '100 pcs' : 'kg')
       };
       const updated = { ...currentItem, ...updates };
 
-      // When quantity/weight is entered, if rate is empty or '0', auto-fetch defaultRate from catalog!
+      // Auto-fill default rate if empty when quantity is typed
       if (updates.weight !== undefined && String(updates.weight).trim() !== '') {
         if ((!updated.rate || String(updated.rate).trim() === '' || String(updated.rate).trim() === '0') && vegMeta?.defaultRate) {
           if (updated.mode !== 'lump_sum' && updated.mode !== 'free') {
@@ -78,9 +83,9 @@ export default function BillEntry({
         }
       }
 
-      if (updates.weight !== undefined || updates.rate !== undefined || updates.mode !== undefined) {
+      if (updates.weight !== undefined || updates.rate !== undefined || updates.mode !== undefined || updates.unit !== undefined) {
         if (updated.mode === 'per_kg' || updated.mode === 'per_100') {
-          updated.amount = computeRowAmount(updated.weight, updated.rate, updated.amount, updated.mode);
+          updated.amount = computeRowAmount(updated.weight, updated.rate, updated.amount, updated.mode, updated.unit);
         } else if (updated.mode === 'free') {
           updated.rate = '';
           updated.amount = '';
@@ -97,18 +102,69 @@ export default function BillEntry({
     });
   }
 
+  function handleApplyScannedItems({ customer, items: scannedRows, isNewBill = true }) {
+    const targetCustomer = customer || customerName || '';
+    const lastRates = getCustomerLastRates(targetCustomer, records);
+
+    // Create fresh items dictionary - OLD PRODUCTS ARE NOT RETAINED
+    const nextItems = {};
+    let appliedCount = 0;
+
+    scannedRows.forEach(({ itemId, quantity, unit, rate: modalRate }) => {
+      const vegMeta = catalog.find(v => v.id === itemId);
+      if (!vegMeta) return;
+
+      appliedCount++;
+
+      // Rate priority:
+      // 1. Rate explicitly confirmed in modal
+      // 2. Last rate charged to this restaurant in previous bills
+      // 3. Catalog default rate
+      let rateToUse = '';
+      if (modalRate && parseFloat(modalRate) > 0) {
+        rateToUse = String(modalRate);
+      } else if (lastRates[itemId]?.rate && parseFloat(lastRates[itemId].rate) > 0) {
+        rateToUse = String(lastRates[itemId].rate);
+      } else if (vegMeta.defaultRate) {
+        rateToUse = String(vegMeta.defaultRate);
+      }
+
+      let calculatedAmount = '';
+      if (quantity && rateToUse && !isNaN(quantity) && !isNaN(rateToUse)) {
+        calculatedAmount = computeRowAmount(quantity, rateToUse, '', vegMeta.mode || 'per_kg', unit || vegMeta.unit || 'kg');
+      }
+
+      nextItems[itemId] = {
+        weight: String(quantity),
+        rate: rateToUse,
+        amount: calculatedAmount,
+        mode: vegMeta.mode || 'per_kg',
+        unit: unit || vegMeta.unit || (vegMeta.mode === 'per_100' ? '100 pcs' : 'kg')
+      };
+    });
+
+    setBillData(prev => ({
+      ...prev,
+      recordId: `rec_${Date.now()}`,
+      customerName: targetCustomer,
+      items: nextItems, // Only the products in this photo are in the bill!
+      tempoHire: ''     // Fresh bill reset
+    }));
+
+    if (showToast) {
+      showToast(`✨ Created fresh bill for ${targetCustomer} with ${appliedCount} items! Hotel rates loaded.`, 'success');
+    }
+  }
+
   function handleKeyNavigation(e, vegId, field, rowIdx) {
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
       if (field === 'qty') {
-        const rateInput = rowRefs.current[`${vegId}-rate`];
-        if (rateInput && !rateInput.disabled && (!rateInput.value || rateInput.value === '0')) {
-          focusCell(rowIdx, 'rate');
-        } else {
-          focusCell(rowIdx, 'rate');
-        }
-      } else if (field === 'rate' || field === 'amt') {
+        focusCell(rowIdx, 'rate');
+      } else if (field === 'rate') {
+        focusCell(rowIdx, 'amt');
+      } else if (field === 'amt') {
         focusNextRowQty(rowIdx);
       }
     } else if (e.key === 'Tab') {
@@ -147,8 +203,6 @@ export default function BillEntry({
       targetEl.focus();
       try {
         targetEl.select();
-      } catch (_) {}
-      try {
         targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } catch (_) {}
     }
@@ -158,7 +212,7 @@ export default function BillEntry({
     if (!confirm('Clear all quantities for the current bill?')) return;
     const cleared = {};
     catalog.forEach(v => {
-      cleared[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg' };
+      cleared[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg', unit: v.unit || 'kg' };
     });
     setBillData(prev => ({ ...prev, tempoHire: '', items: cleared }));
     showToast('Cleared all quantities');
@@ -183,16 +237,20 @@ export default function BillEntry({
     }, showToast);
   }
 
+  // Ordered items for single-page invoice
+  const orderedList = catalog.filter(v => isItemOrdered(items[v.id]));
+  const previewList = showAllInPreview ? catalog : orderedList;
+
   return (
-    <div className="space-y-3">
-      {/* Mobile View Toggle: Edit Bill vs Live Bill Preview (Sticky on mobile) */}
-      <div className="no-print lg:hidden bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-1.5 sticky top-[56px] z-20">
+    <div className="space-y-4">
+      {/* Mobile Tab Switcher */}
+      <div className="no-print lg:hidden bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1 sticky top-[56px] z-20">
         <button
           type="button"
           onClick={() => setMobileTab('EDIT')}
           className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
             mobileTab === 'EDIT'
-              ? 'bg-emerald-700 text-white shadow-sm'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -204,49 +262,38 @@ export default function BillEntry({
           onClick={() => setMobileTab('PREVIEW')}
           className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
             mobileTab === 'PREVIEW'
-              ? 'bg-emerald-700 text-white shadow-sm'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <span>👁️</span>
-          <span>Live Bill Preview (₹{formatMoney(grandTotal)})</span>
+          <span>Invoice Preview (Rs {formatMoney(grandTotal)})</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Interactive Order Entry & Controls */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Input Form & Entry Table */}
         <div className={`no-print lg:col-span-7 space-y-4 ${mobileTab === 'PREVIEW' ? 'hidden lg:block' : 'block'}`}>
-          {/* Bill Book Type Switcher */}
-          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 p-3 rounded-2xl border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+          {/* Category Switcher */}
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">{isFruit ? '🍎' : '🥬'}</span>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-slate-800 text-sm">
-                    {isFruit ? 'Fruit Bill Book' : 'Vegetable Bill Book'}
-                  </h3>
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                    isFruit ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}>
-                    {isFruit ? '18 Printed Fruits' : '42 Printed Veggies'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  {isFruit
-                    ? 'Entering fruits for restaurants (Mosambi, Orange, Water Melon, Banana...)'
-                    : 'Entering daily fresh vegetables for restaurants'}
+                <h3 className="font-bold text-slate-800 text-sm">
+                  {isFruit ? 'Fruit Wholesale Billing' : 'Vegetable Wholesale Billing'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {isFruit ? 'Fresh wholesale fruits catalog' : 'Daily wholesale vegetables catalog'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center p-1 bg-white rounded-xl border border-slate-200 shadow-xs w-full sm:w-auto shrink-0">
+            <div className="flex items-center p-1 bg-slate-100 rounded-lg border border-slate-200 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={() => setBillData(prev => ({ ...prev, billCategory: 'VEGETABLES' }))}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  !isFruit
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-md text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  !isFruit ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <span>🥬</span>
@@ -255,10 +302,8 @@ export default function BillEntry({
               <button
                 type="button"
                 onClick={() => setBillData(prev => ({ ...prev, billCategory: 'FRUITS' }))}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  isFruit
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-md text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  isFruit ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <span>🍎</span>
@@ -267,211 +312,249 @@ export default function BillEntry({
             </div>
           </div>
 
-          {/* Step 1: Customer & Invoice Details Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+          {/* Customer & Invoice Details Card */}
+          <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+              <h2 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <span>📋</span>
+                <span>Invoice &amp; Customer Information</span>
+              </h2>
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">1</span>
-                <h2 className="font-bold text-slate-800 text-sm sm:text-base">Restaurant &amp; Bill Details</h2>
-              </div>
-              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsScanModalOpen(true)}
+                  className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-600 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  title="Extract items & quantities directly from camera photo or slip"
+                >
+                  <span className="text-sm">📸</span>
+                  <span>Scan Slip (AI)</span>
+                </button>
                 <button
                   type="button"
                   onClick={onNewBlankBill}
-                  className="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition flex items-center gap-1 shadow-2xs"
+                  className="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-200 transition flex items-center gap-1 cursor-pointer"
                 >
                   <span>✨</span>
-                  <span>+ New Blank Bill</span>
+                  <span>New Blank Bill</span>
                 </button>
               </div>
             </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            <div className="sm:col-span-3">
-              <label htmlFor="inputInvoiceNo" className="block text-xs font-semibold text-slate-600 mb-1">Invoice No.</label>
-              <input
-                id="inputInvoiceNo"
-                type="text"
-                placeholder="e.g. 101"
-                value={invoiceNo}
-                onChange={e => setBillData(prev => ({ ...prev, invoiceNo: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-            </div>
-            <div className="sm:col-span-5">
-              <label htmlFor="inputCustomerName" className="block text-xs font-semibold text-slate-600 mb-1">M/s. (Restaurant Name) *</label>
-              <input
-                id="inputCustomerName"
-                type="text"
-                list="savedCustomersList"
-                placeholder="Enter or select restaurant (e.g. BT, SAI DARSHAN)"
-                value={customerName}
-                onChange={e => setBillData(prev => ({ ...prev, customerName: e.target.value.toUpperCase() }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 uppercase"
-              />
-              <datalist id="savedCustomersList">
-                {restaurantsList.map(r => (
-                  <option key={r} value={r} />
-                ))}
-              </datalist>
-            </div>
-            <div className="sm:col-span-4">
-              <label htmlFor="inputInvoiceDate" className="block text-xs font-semibold text-slate-600 mb-1">Bill Date</label>
-              <input
-                id="inputInvoiceDate"
-                type="date"
-                value={date}
-                onChange={e => setBillData(prev => ({ ...prev, date: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-            </div>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="sm:col-span-3">
+                <label htmlFor="inputInvoiceNo" className="block text-xs font-semibold text-slate-600 mb-1">Invoice No.</label>
+                <input
+                  id="inputInvoiceNo"
+                  type="text"
+                  placeholder="e.g. 2211"
+                  value={invoiceNo}
+                  onChange={e => setBillData(prev => ({ ...prev, invoiceNo: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
 
-          {/* Quick Restaurant Chips & Payment Status */}
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-slate-500 font-medium">Quick Select M/s.:</span>
-              <div className="flex items-center gap-1 flex-wrap">
+              <div className="sm:col-span-4">
+                <label htmlFor="inputDate" className="block text-xs font-semibold text-slate-600 mb-1">Invoice Date</label>
+                <input
+                  id="inputDate"
+                  type="date"
+                  value={date}
+                  onChange={e => setBillData(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              <div className="sm:col-span-5">
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="selectCustomerDropdown" className="block text-xs font-semibold text-slate-600">
+                    Bill To (M/s) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={onOpenAddCustomCustomer}
+                    className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                  >
+                    + Add New
+                  </button>
+                </div>
+                {/* Dual Input + Select for fast customer picking */}
+                <select
+                  id="selectCustomerDropdown"
+                  value={customerName}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '__ADD_NEW__') {
+                      onOpenAddCustomCustomer();
+                    } else {
+                      setBillData(prev => ({ ...prev, customerName: val }));
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer"
+                >
+                  <option value="">-- Select from your customers --</option>
+                  {restaurantsList.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                  <option value="__ADD_NEW__">➕ Add Custom Customer...</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Quick Select Customer Pill Buttons */}
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-500 block">
+                  Quick Select Customer (Click to set):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsScanModalOpen(true)}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-200 transition flex items-center gap-1 cursor-pointer"
+                >
+                  <span>📷</span>
+                  <span>Scan Slip</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap max-h-24 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200">
                 {restaurantsList.map(r => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => setBillData(prev => ({ ...prev, customerName: r }))}
-                    className="text-xs bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-900 px-2.5 py-1 rounded-md font-semibold border border-slate-200 transition whitespace-nowrap"
+                    className={`text-[11px] px-2.5 py-1 rounded-md font-semibold border transition cursor-pointer whitespace-nowrap ${
+                      customerName === r
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        : 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300'
+                    }`}
                   >
                     {r}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-600">Payment Status:</span>
+                <select
+                  value={paymentStatus}
+                  onChange={e => setBillData(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                  className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition ${
+                    paymentStatus === 'Paid'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}
+                >
+                  <option value="Credit / Unpaid">Credit / Unpaid</option>
+                  <option value="Paid">Paid</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={onOpenAddCustomCustomer}
-                  className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 hover:text-emerald-950 px-2.5 py-1 rounded-md font-bold border border-emerald-300 transition whitespace-nowrap flex items-center gap-1"
+                  onClick={clearAllEntries}
+                  className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg border border-red-200 transition cursor-pointer"
                 >
-                  <span>➕</span>
-                  <span>Add Custom</span>
+                  🗑️ Clear All Qty
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="selectPaymentStatus" className="text-xs font-semibold text-slate-600">Status:</label>
-              <select
-                id="selectPaymentStatus"
-                value={paymentStatus}
-                onChange={e => setBillData(prev => ({ ...prev, paymentStatus: e.target.value }))}
-                className="px-2.5 py-1 rounded-lg border border-slate-300 text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              >
-                <option value="Credit / Unpaid">Credit / Unpaid</option>
-                <option value="Paid - Cash">Paid - Cash</option>
-                <option value="Paid - UPI / Bank">Paid - UPI / Bank</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 2: Order Entry Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-              <span className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center ${
-                isFruit ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
-              }`}>2</span>
-              <div>
-                <h2 className="font-bold text-slate-800 text-sm sm:text-base">
-                  Enter Today's {isFruit ? 'Fruit' : 'Vegetable'} Quantities &amp; Rates
-                </h2>
-                <p className="text-xs text-slate-500">Only items with a Weight or Amount entered appear on the final restaurant invoice.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpenAddVegetable(isFruit ? 'Fruit' : 'Vegetable')}
-                className="text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition"
-              >
-                + Add Custom {isFruit ? 'Fruit' : 'Item'}
-              </button>
-              <button type="button" onClick={clearAllEntries} className="text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-2.5 py-1.5 rounded-lg transition">
-                Clear Entries
-              </button>
-            </div>
           </div>
 
-          {/* Search & Filter Controls */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <div className="relative flex-1">
+          {/* Search & Entry Filter Bar */}
+          <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+            <div className="relative flex-1 min-w-[200px]">
               <input
                 type="text"
-                placeholder={isFruit ? 'Search fruit (e.g. Water Melon, Banana, Orange, Kiwi)...' : 'Search vegetable (e.g. Flower, Tomato, Lemon, Turya)...'}
+                placeholder={isFruit ? 'Search fruit (e.g. Mosambi, Apple, Banana)...' : 'Search item (e.g. Kobi, Tomato, Mushroom, Lemon)...'}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                className="w-full pl-8 pr-7 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
               />
               <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
               {searchQuery && (
                 <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 text-xs font-bold px-1">✕</button>
               )}
             </div>
-            <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shrink-0">
+
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
               <button
                 type="button"
                 onClick={() => setFilterMode('ALL')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${filterMode === 'ALL' ? (isFruit ? 'bg-red-700 text-white' : 'bg-emerald-700 text-white') : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
+                  filterMode === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
               >
                 All Items ({catalog.length})
               </button>
               <button
                 type="button"
                 onClick={() => setFilterMode('ORDERED')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${filterMode === 'ORDERED' ? (isFruit ? 'bg-red-700 text-white' : 'bg-emerald-700 text-white') : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
+                  filterMode === 'ORDERED' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
               >
                 Ordered Only ({orderedCount})
               </button>
             </div>
           </div>
 
-          {/* Scrollable Entry List */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="max-h-[460px] overflow-y-auto">
+          {/* High-Speed Items Data Entry Table */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+            <div className="max-h-[500px] overflow-y-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-100 sticky top-0 z-10 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
+                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
                   <tr>
                     <th className="py-2.5 px-2.5 w-10 text-center">#</th>
-                    <th className="py-2.5 px-2.5">{isFruit ? 'Fruit' : 'Vegetable'} (Particulars)</th>
-                    <th className="py-2.5 px-2 w-28">Mode</th>
-                    <th className="py-2.5 px-2 w-24 text-right">Weight/Qty</th>
-                    <th className="py-2.5 px-2 w-24 text-right">Rate (₹)</th>
-                    <th className="py-2.5 px-2.5 w-28 text-right">Amount (₹)</th>
+                    <th className="py-2.5 px-2.5">{isFruit ? 'Fruit' : 'Item'} (Particulars)</th>
+                    <th className="py-2.5 px-2 w-24 text-center">Unit</th>
+                    <th className="py-2.5 px-2 w-24 text-right">Qty</th>
+                    <th className="py-2.5 px-2 w-24 text-right">Rate (Rs)</th>
+                    <th className="py-2.5 px-2.5 w-28 text-right">Amount (Rs)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 text-sm">
+                <tbody className="divide-y divide-slate-100 text-sm">
                   {filteredCatalog.map((veg, rIdx) => {
-                    const st = items[veg.id] || { weight: '', rate: veg.defaultRate || '', amount: '', mode: veg.mode || 'per_kg' };
+                    const st = items[veg.id] || {
+                      weight: '',
+                      rate: veg.defaultRate || '',
+                      amount: '',
+                      mode: veg.mode || 'per_kg',
+                      unit: veg.unit || (veg.mode === 'per_100' ? '100 pcs' : 'kg')
+                    };
                     const ordered = isItemOrdered(st);
+                    const currentUnit = st.unit || veg.unit || (st.mode === 'per_100' ? '100 pcs' : 'kg');
+                    const hasOptions = Array.isArray(veg.unitOptions) && veg.unitOptions.length > 0;
 
                     return (
-                      <tr key={veg.id} className={ordered ? 'bg-emerald-50/70 hover:bg-emerald-100/60 transition' : 'hover:bg-slate-50 transition'}>
-                        <td className="py-2 px-2.5 text-center font-semibold text-xs text-slate-500">{rIdx + 1}</td>
-                        <td className="py-2 px-2.5 font-semibold text-slate-800 text-xs sm:text-sm">
-                          {ordered && <span className="inline-block w-2 h-2 rounded-full bg-emerald-600 mr-1.5" />}
+                      <tr key={veg.id} className={ordered ? 'bg-slate-50/90 font-medium' : 'hover:bg-slate-50/50'}>
+                        <td className="py-2 px-2.5 text-center text-xs text-slate-400 font-medium">{rIdx + 1}</td>
+                        <td className="py-2 px-2.5 text-slate-900 text-xs sm:text-sm">
+                          {ordered && <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-900 mr-1.5" />}
                           {veg.name}
                         </td>
-                        <td className="py-1.5 px-1.5">
-                          <select
-                            value={st.mode}
-                            tabIndex={-1}
-                            onChange={e => {
-                              const m = e.target.value;
-                              if (m === 'free') updateItem(veg.id, { mode: m, rate: '', amount: '' });
-                              else if (m === 'lump_sum') updateItem(veg.id, { mode: m, rate: '' });
-                              else updateItem(veg.id, { mode: m });
-                            }}
-                            className="w-full px-1.5 py-1 rounded border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 font-semibold"
-                          >
-                            <option value="per_kg">Kg × Rate</option>
-                            <option value="per_100">Per 100 Pcs</option>
-                            <option value="lump_sum">Direct Rs.</option>
-                            <option value="free">Free / 0</option>
-                          </select>
+                        <td className="py-1.5 px-1.5 text-center">
+                          {hasOptions ? (
+                            <select
+                              value={currentUnit}
+                              tabIndex={-1}
+                              onChange={e => {
+                                const newU = e.target.value;
+                                const newMode = newU === '100 pcs' ? 'per_100' : 'per_kg';
+                                updateItem(veg.id, { unit: newU, mode: newMode });
+                              }}
+                              className="px-1.5 py-1 rounded border border-slate-300 text-xs bg-white text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-slate-900"
+                            >
+                              {veg.unitOptions.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-500 uppercase">
+                              {currentUnit || 'kg'}
+                            </span>
+                          )}
                         </td>
                         <td className="py-1.5 px-1.5">
                           <input
@@ -480,11 +563,11 @@ export default function BillEntry({
                             step="any"
                             min="0"
                             enterKeyHint="next"
-                            placeholder={st.mode === 'per_100' ? 'Pcs' : 'Kg'}
+                            placeholder="0"
                             value={st.weight}
                             onChange={e => updateItem(veg.id, { weight: e.target.value })}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'qty', rIdx)}
-                            className="w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-blue-900"
+                            className="w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                           />
                         </td>
                         <td className="py-1.5 px-1.5">
@@ -494,13 +577,13 @@ export default function BillEntry({
                             step="any"
                             min="0"
                             enterKeyHint="next"
-                            placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : (veg.defaultRate ? `₹${veg.defaultRate}` : 'Rate')}
+                            placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : (veg.defaultRate ? `Rs ${veg.defaultRate}` : 'Rate')}
                             disabled={st.mode === 'lump_sum' || st.mode === 'free'}
                             value={st.mode === 'lump_sum' || st.mode === 'free' ? '' : st.rate}
                             onChange={e => updateItem(veg.id, { rate: e.target.value })}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'rate', rIdx)}
-                            className={`w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
-                              st.mode === 'lump_sum' || st.mode === 'free' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-purple-900'
+                            className={`w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
+                              st.mode === 'lump_sum' || st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white'
                             }`}
                           />
                         </td>
@@ -523,8 +606,8 @@ export default function BillEntry({
                               }
                             }}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'amt', rIdx)}
-                            className={`w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
-                              st.mode === 'free' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-emerald-900'
+                            className={`w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
+                              st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-900'
                             }`}
                           />
                         </td>
@@ -541,10 +624,12 @@ export default function BillEntry({
             </div>
           </div>
 
-          {/* Tempo Hire & Bottom Summary Bar */}
-          <div className="mt-4 pt-3 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-emerald-50/60 p-3 rounded-xl border border-emerald-200/80">
-            <div className="flex items-center gap-3">
-              <label htmlFor="inputTempoHire" className="text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">🚚 Tempo Hire (₹):</label>
+          {/* Tempo Hire & Summary Bar */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+            <div className="flex items-center gap-2.5">
+              <label htmlFor="inputTempoHire" className="text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
+                🚚 Tempo Hire / Delivery (Rs):
+              </label>
               <input
                 id="inputTempoHire"
                 type="number"
@@ -553,213 +638,256 @@ export default function BillEntry({
                 placeholder="0"
                 value={tempoHire}
                 onChange={e => setBillData(prev => ({ ...prev, tempoHire: e.target.value }))}
-                className="w-32 px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-bold text-right bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                className="w-28 px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold text-right bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
             </div>
-            <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-4">
+            <div className="flex items-center justify-between sm:justify-end gap-3">
               <div className="text-right">
-                <span className="text-xs text-slate-500 block">Items Subtotal: ₹{formatMoney(subtotal)}</span>
-                <span className="text-sm sm:text-base font-extrabold text-emerald-900">Grand Total: ₹{formatMoney(grandTotal)}</span>
+                <span className="text-xs text-slate-500 block">Subtotal: Rs {formatMoney(subtotal)}</span>
+                <span className="text-sm sm:text-base font-extrabold text-slate-900">Total Due: Rs {formatMoney(grandTotal)}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileTab('PREVIEW');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="lg:hidden px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs border border-emerald-300 transition flex items-center gap-1"
-                >
-                  <span>👁️ Preview</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onSaveBill}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-sm transition flex items-center gap-1.5"
-                >
-                  <span>💾</span>
-                  <span>Save Bill Record</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onSaveBill}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>💾</span>
+                <span>Save Bill</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Right Column: Live Official Invoice Preview */}
-      <div className={`lg:col-span-5 print-only-container lg:sticky lg:top-20 w-full ${mobileTab === 'EDIT' ? 'hidden lg:block' : 'block'}`}>
-        {/* Mobile-Only Return to Edit Button */}
-        <div className="no-print lg:hidden mb-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              if (window.location.hash.includes('preview')) {
-                window.history.back();
-              } else if (setMobileTab) {
-                setMobileTab('EDIT');
-              }
-            }}
-            className="w-full py-2.5 px-4 rounded-xl bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-98"
-          >
-            <span>←</span>
-            <span>Back to Edit Bill</span>
-          </button>
-        </div>
-
-        <div className="no-print bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 sm:p-3 mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">Live Bill Preview</span>
-            <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showAllInPreview}
-                onChange={e => setShowAllInPreview(e.target.checked)}
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-              <span>All {catalog.length} rows</span>
-            </label>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-1.5">
+        {/* Right Column: Centered Single-Page Invoice Preview */}
+        <div className={`lg:col-span-5 print-only-container lg:sticky lg:top-20 w-full ${mobileTab === 'EDIT' ? 'hidden lg:block' : 'block'}`}>
+          {/* Mobile Back Button */}
+          <div className="no-print lg:hidden mb-2.5">
             <button
               type="button"
-              onClick={handleSendWhatsApp}
-              className="px-2.5 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold text-xs transition flex items-center gap-1 shadow-sm"
-              title="Send Invoice Image via WhatsApp"
+              onClick={() => setMobileTab('EDIT')}
+              className="w-full py-2.5 px-4 rounded-xl bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs"
             >
-              <span>📲</span>
-              <span>WhatsApp Image</span>
-            </button>
-            <button type="button" onClick={onOpenExportModal} className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition flex items-center gap-1 shadow-sm">
-              <span>📄</span>
-              <span>PDF</span>
-            </button>
-            <button type="button" onClick={() => window.print()} className="px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition flex items-center gap-1 shadow-sm">
-              <span>🖨️</span>
-              <span>Print</span>
+              <span>←</span>
+              <span>Back to Edit Bill</span>
             </button>
           </div>
-        </div>
 
-        {/* Official Biroba Bill Sheet */}
-        <div id="printableBillArea" className="bill-paper rounded-xl p-2 sm:p-5 mx-auto w-full max-w-xl">
-          <div className="devanagari flex items-center justify-between text-[8px] sm:text-xs font-semibold bill-green mb-1.5 px-1">
-            <span>|| श्री महालिंगराया प्रसन्न ||</span>
-            <span>|| श्री स्वामी समर्थ प्रसन्न ||</span>
-            <span>|| श्री बालाजी प्रसन्न ||</span>
-          </div>
-
-          <div className="flex items-center gap-2.5 sm:gap-3 border-b-2 border-emerald-800 pb-2.5 mb-2.5">
-            <div className="w-12 h-12 sm:w-20 sm:h-16 shrink-0 flex items-center justify-center overflow-hidden">
-              <img
-                src="/icon-192.png"
-                alt="Fresh Vegetables"
-                className="max-w-full max-h-full object-contain"
-                onError={e => { e.target.src = '/Vegetable.jpg'; }}
-              />
+          {/* Action Toolbar */}
+          <div className="no-print bg-white rounded-xl shadow-xs border border-slate-200 p-2.5 mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                Single-Page Invoice
+              </span>
+              <label className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showAllInPreview}
+                  onChange={e => setShowAllInPreview(e.target.checked)}
+                  className="rounded text-slate-900 focus:ring-slate-900"
+                />
+                <span>All {catalog.length} rows</span>
+              </label>
             </div>
-            <div className="flex-1 text-center min-w-0">
-              <h2 className="bill-red font-extrabold text-base sm:text-xl tracking-tight leading-tight">
-                BIROBA VEGETABLE SUPPLIERS
-              </h2>
-              <p className="bill-green font-bold text-[8.5px] sm:text-[11px] tracking-tight mt-0.5 leading-tight">
-                ALL KINDS OF FRESH VEGETABLE &amp; FRUITS WHOLESALE SUPPLIERS
-              </p>
-              <p className="bill-green font-semibold text-[8px] sm:text-[10px] leading-tight">
-                Old Bhaji Market Byculla Mumbai-400 027<span className="hidden sm:inline"> • M.: 9892406958 / 8451869058</span>
-              </p>
-              <p className="bill-red font-bold text-[10.5px] sm:text-sm mt-0.5">
-                Prop.: Birappa B. Nigadi
-              </p>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleSendWhatsApp}
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer"
+                title="Send Single-Page Invoice via WhatsApp"
+              >
+                <span>📲</span>
+                <span>WhatsApp</span>
+              </button>
+              <button
+                type="button"
+                onClick={onOpenExportModal}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition flex items-center gap-1 shadow-xs cursor-pointer"
+              >
+                <span>📄</span>
+                <span>PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>🖨️</span>
+                <span>Print</span>
+              </button>
             </div>
           </div>
 
-          <div className="text-xs sm:text-sm mb-3 space-y-2 px-1">
-            <div className="flex items-center justify-between gap-3 pb-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="bill-green font-bold">No. :</span>
-                <span className="font-extrabold text-slate-900 border-b-2 border-emerald-700/80 min-w-[60px] px-1 pb-0.5">{invoiceNo || '-'}</span>
+          {/* Centered Document Viewer Container (Kept in middle like a real PDF) */}
+          <div className="bg-slate-100/90 p-2 sm:p-4 rounded-2xl flex justify-center items-start overflow-x-auto border border-slate-200/80">
+            <div
+              id="printableBillArea"
+              className="invoice-sheet bg-white rounded-lg p-5 sm:p-7 w-full max-w-[530px] text-slate-900 border border-slate-200 shadow-md"
+            >
+              {/* Top small label */}
+              <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                INVOICE
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="bill-green font-bold">Date :</span>
-                <span className="font-bold text-slate-900 border-b-2 border-emerald-700/80 min-w-[95px] px-1 pb-0.5 text-right">{formatDateDisplay(date)}</span>
+
+              {/* Title & Header Block */}
+              <div className="mb-3">
+                <h1 className="serif-title text-2xl font-bold tracking-tight text-slate-950 mb-1">
+                  INVOICE
+                </h1>
+                <div className="text-[11.5px] text-slate-800 leading-snug space-y-0.5">
+                  <p>
+                    <strong className="font-bold text-slate-950">{COMPANY_INFO.name}</strong>{' '}
+                    <span className="text-slate-600">{COMPANY_INFO.tagline}</span>
+                  </p>
+                  <p className="text-slate-600">
+                    {COMPANY_INFO.address} Phone: {COMPANY_INFO.phone}
+                  </p>
+                  <p className="text-slate-800 font-medium">
+                    Proprietor: {COMPANY_INFO.proprietor}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 pt-0.5">
-              <span className="bill-green font-bold shrink-0">M/s. :</span>
-              <span className="font-extrabold text-slate-900 text-sm sm:text-base border-b-2 border-emerald-700/80 flex-1 px-2 pb-0.5 truncate">{customerName || '____________________'}</span>
-            </div>
-          </div>
 
-          <div className="w-full overflow-hidden">
-            <table className="bill-table w-full">
-              <colgroup>
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '43%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '18%' }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th className="text-center">No.</th>
-                  <th className="text-left">PARTICULARS</th>
-                  <th className="text-center leading-tight">WEIGHT</th>
-                  <th className="text-center leading-tight">RATE<br /><span className="text-[8px] sm:text-[10px] font-semibold">Per</span></th>
-                  <th className="text-right leading-tight">AMOUNT<br /><span className="text-[8px] sm:text-[10px] font-semibold">Rs.</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {catalog.map((veg, idx) => {
-                  const it = items[veg.id] || {};
-                  const ordered = isItemOrdered(it);
-                  if (!showAllInPreview && !ordered) return null;
+              {/* Divider */}
+              <hr className="border-t border-slate-200 mb-2.5" />
 
-                  const weightText = ordered ? formatWeightClean(it.weight) : '';
-                  const rateText = ordered ? (it.mode === 'lump_sum' || it.mode === 'free' || !it.rate ? '-' : `${it.rate}${it.mode === 'per_100' ? '/100' : ''}`) : '';
-                  const amountText = ordered ? (it.mode === 'free' ? '-' : (it.amount ? formatMoney(it.amount) : '-')) : '';
+              {/* Metadata */}
+              <div className="text-[11.5px] space-y-0.5 mb-2.5 text-slate-900">
+                <p>
+                  <strong className="font-bold">Invoice No.:</strong> {invoiceNo || '—'}
+                </p>
+                <p>
+                  <strong className="font-bold">Invoice Date:</strong> {formatDateLong(date) || formatDateDisplay(date)}
+                </p>
+                <p>
+                  <strong className="font-bold">Bill To (M/s):</strong> {customerName || '—'}
+                </p>
+              </div>
 
-                  return (
-                    <tr key={veg.id}>
-                      <td className="text-center font-semibold">{idx + 1}.</td>
-                      <td className="font-semibold text-slate-900 truncate sm:whitespace-normal">{veg.name}</td>
-                      <td className="text-center font-bold text-slate-900">{weightText}</td>
-                      <td className="text-center font-semibold text-slate-800">{rateText}</td>
-                      <td className="text-right font-bold text-slate-900">{amountText}</td>
+              {/* Divider */}
+              <hr className="border-t border-slate-200 mb-2.5" />
+
+              {/* Invoice Items Table (Centered on page, compact row spacing) */}
+              <div className="w-full overflow-hidden mb-3">
+                <table className="invoice-table w-full">
+                  <colgroup>
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '42%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '13%' }} />
+                    <col style={{ width: '13%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="text-center py-1.5 px-1 text-[11px]">#</th>
+                      <th className="text-left py-1.5 px-2 text-[11px]">Item</th>
+                      <th className="text-right py-1.5 px-1.5 text-[11px]">Qty</th>
+                      <th className="text-center py-1.5 px-1 text-[11px]">Unit</th>
+                      <th className="text-right py-1.5 px-1.5 text-[11px]">Rate (Rs)</th>
+                      <th className="text-right py-1.5 px-1.5 text-[11px]">Amount (Rs)</th>
                     </tr>
-                  );
-                })}
-                {orderedCount === 0 && !showAllInPreview && (
-                  <tr>
-                    <td colSpan="5" className="text-center py-4 text-slate-400 italic font-medium text-xs">Enter quantities above to populate bill.</td>
-                  </tr>
-                )}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-emerald-800">
-                  <td colSpan="4" className="text-right font-bold bill-green py-1 pr-2 sm:pr-3 bg-emerald-50/40 text-[11px] sm:text-sm">Tempo Hire</td>
-                  <td className="text-right font-bold text-slate-900 py-1 px-1 sm:px-2 bg-emerald-50/40 text-[11px] sm:text-sm">{tempoHire > 0 ? formatMoney(tempoHire) : '-'}</td>
-                </tr>
-                <tr className="border-t-2 border-emerald-800 bg-emerald-50/80">
-                  <td colSpan="4" className="text-right font-extrabold bill-green text-xs sm:text-base py-1.5 pr-2 sm:pr-3">Total</td>
-                  <td className="text-right font-extrabold text-slate-900 text-sm sm:text-lg py-1.5 px-1 sm:px-2">{formatMoney(grandTotal)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {previewList.map((veg, idx) => {
+                      const it = items[veg.id] || {};
+                      const ordered = isItemOrdered(it);
+                      if (!showAllInPreview && !ordered) return null;
 
-          <div className="mt-2.5 pt-1 flex items-center justify-between text-xs gap-1">
-            <span className={`text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded border ${
-              paymentStatus === 'Credit / Unpaid' ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-            }`}>
-              Status: {paymentStatus}
-            </span>
-            <p className="bill-red font-extrabold text-[10px] sm:text-sm tracking-tight text-right">
-              For BIROBA VEGETABLE SUPPLIERS
-            </p>
+                      const qtyText = ordered ? formatWeightClean(it.weight) : '';
+                      const unitText = ordered ? getItemUnit(veg, it) : '';
+                      const rateText = ordered
+                        ? (it.mode === 'lump_sum' || it.mode === 'free' || !it.rate ? '-' : formatMoney(it.rate))
+                        : '';
+                      const amountText = ordered
+                        ? (it.mode === 'free' ? '0' : (it.amount ? formatMoney(it.amount) : '-'))
+                        : '';
+
+                      return (
+                        <tr key={veg.id}>
+                          <td className="text-center text-slate-500 font-medium py-1 px-1 text-[11px]">{idx + 1}</td>
+                          <td className="font-medium text-slate-900 py-1 px-2 text-[11px] truncate">{veg.name}</td>
+                          <td className="text-right text-slate-900 py-1 px-1.5 text-[11px]">{qtyText}</td>
+                          <td className="text-center text-slate-600 py-1 px-1 text-[10.5px]">{unitText}</td>
+                          <td className="text-right text-slate-900 py-1 px-1.5 text-[11px]">{rateText}</td>
+                          <td className="text-right font-medium text-slate-950 py-1 px-1.5 text-[11px]">{amountText}</td>
+                        </tr>
+                      );
+                    })}
+                    {orderedCount === 0 && !showAllInPreview && (
+                      <tr>
+                        <td colSpan="6" className="text-center py-6 text-slate-400 italic text-xs">
+                          Enter quantities on the left to populate invoice.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Divider */}
+              <hr className="border-t border-slate-200 mb-2.5" />
+
+              {/* Totals Table (Right aligned matching reference PDF) */}
+              <div className="flex justify-end mb-3">
+                <table className="w-64 border-collapse text-[11.5px]">
+                  <tbody>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1 px-2 font-semibold text-slate-700">Subtotal (Items)</td>
+                      <td className="py-1 px-2 text-right font-semibold text-slate-900">
+                        Rs {formatMoney(subtotal)}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1 px-2 font-semibold text-slate-700">Tempo Hire / Delivery</td>
+                      <td className="py-1 px-2 text-right font-semibold text-slate-900">
+                        Rs {formatMoney(tempoHire || 0)}
+                      </td>
+                    </tr>
+                    <tr className="bg-slate-50 border-t border-slate-300">
+                      <td className="py-1.5 px-2 font-extrabold text-slate-950">TOTAL DUE</td>
+                      <td className="py-1.5 px-2 text-right font-extrabold text-slate-950">
+                        Rs {formatMoney(grandTotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Amount in words */}
+              <div className="text-[11.5px] text-slate-900 mb-3 pb-2 border-b border-slate-200">
+                <strong className="font-bold">Amount in words:</strong>{' '}
+                <span className="font-medium">{numberToIndianWords(grandTotal)}</span>
+              </div>
+
+              {/* Signatory Section */}
+              <div className="pt-1 text-[11.5px] text-slate-900 space-y-3">
+                <p className="font-bold">For {COMPANY_INFO.name}</p>
+                <p className="text-slate-700">
+                  Authorised Signatory: <span className="inline-block border-b border-slate-400 w-44 ml-1"></span>
+                </p>
+              </div>
+
+              {/* Subtle Footer */}
+              <div className="mt-4 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-400">
+                <span>INVOICE</span>
+                <span>Page 1 of 1</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Camera & Slip AI Scanner Modal */}
+      <ScanSlipModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        catalog={catalog}
+        customers={restaurantsList}
+        records={records}
+        currentCustomer={customerName}
+        onApply={handleApplyScannedItems}
+      />
     </div>
-  </div>
-);
+  );
 }

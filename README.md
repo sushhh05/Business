@@ -4,6 +4,8 @@ A modern, mobile-friendly **Progressive Web App (PWA)** designed for wholesale v
 
 Built with React 19, Tailwind CSS, Vite, and Node.js with live Google Sheets synchronization.
 
+> 📖 **Full System Architecture & Ongoing Change Log**: See [PROJECT_DOCUMENTATION.md](file:///c:/Users/susha/OneDrive/Desktop/Business/PROJECT_DOCUMENTATION.md) for full architectural details, data models, Google Sheets schema, and version history. Every modification to this project must be logged there.
+
 ---
 
 ## ✨ Features

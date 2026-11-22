@@ -20,6 +20,7 @@ import {
   saveLastActiveTab,
   getAllRestaurants,
   getTodayISO,
+  SAMPLE_POWAI_INVOICE,
   SAMPLE_BT_INVOICE,
   SAMPLE_LOCOMO_FRUIT_INVOICE,
   computeRecordGrandTotal
@@ -36,7 +37,7 @@ export default function App() {
 
   // Active bill draft state with persistence: loads in-progress draft from localStorage
   const [billData, setBillData] = useState(() => {
-    const defaultInitial = records[0] || SAMPLE_BT_INVOICE;
+    const defaultInitial = records[0] || SAMPLE_POWAI_INVOICE;
     return loadActiveDraft(defaultInitial);
   });
 
@@ -430,6 +431,7 @@ export default function App() {
             billData={billData}
             setBillData={setBillData}
             restaurantsList={restaurantsList}
+            records={records}
             onOpenAddCustomCustomer={handleOpenAddCustModal}
             onOpenAddVegetable={handleOpenAddVegModal}
             onSaveBill={handleSaveBill}
