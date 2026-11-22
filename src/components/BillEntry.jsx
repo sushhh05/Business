@@ -372,6 +372,15 @@ export default function BillEntry({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => onOpenAddVegetable && onOpenAddVegetable(isFruit ? 'Fruit' : 'Vegetable', searchQuery.trim())}
+                  className="text-xs font-bold text-slate-800 hover:text-slate-950 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-300 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  title={isFruit ? "Add a new fruit to bill" : "Add a new product / vegetable to bill"}
+                >
+                  <span className="text-emerald-600 font-extrabold text-sm">➕</span>
+                  <span>Add Product</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setIsScanModalOpen(true)}
                   className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-600 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                   title="Extract items & quantities directly from camera photo or slip"
@@ -528,24 +537,36 @@ export default function BillEntry({
               )}
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('ALL')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
+                    filterMode === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                  }`}
+                >
+                  All Items ({catalog.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('ORDERED')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
+                    filterMode === 'ORDERED' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                  }`}
+                >
+                  Ordered Only ({orderedCount})
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setFilterMode('ALL')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
-                  filterMode === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
+                onClick={() => onOpenAddVegetable && onOpenAddVegetable(isFruit ? 'Fruit' : 'Vegetable', searchQuery.trim())}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                title={isFruit ? "Add a new fruit" : "Add a new product / vegetable"}
               >
-                All Items ({catalog.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterMode('ORDERED')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
-                  filterMode === 'ORDERED' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
-              >
-                Ordered Only ({orderedCount})
+                <span>➕</span>
+                <span>Add Product</span>
               </button>
             </div>
           </div>
@@ -664,9 +685,32 @@ export default function BillEntry({
                       </tr>
                     );
                   })}
-                  {filteredCatalog.length === 0 && (
+                  {filteredCatalog.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="p-8 text-center text-slate-400 font-medium">No matching items found.</td>
+                      <td colSpan="6" className="p-8 text-center text-slate-500 font-medium space-y-2.5">
+                        <p>No matching {isFruit ? 'fruits' : 'vegetables'} found{searchQuery ? ` for "${searchQuery}"` : ''}.</p>
+                        <button
+                          type="button"
+                          onClick={() => onOpenAddVegetable && onOpenAddVegetable(isFruit ? 'Fruit' : 'Vegetable', searchQuery.trim())}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                        >
+                          <span>➕</span>
+                          <span>Add {searchQuery ? `"${searchQuery}"` : 'New Product'} to Invoice</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="py-2.5 px-3 bg-slate-50/80 border-t border-slate-200 text-center">
+                        <button
+                          type="button"
+                          onClick={() => onOpenAddVegetable && onOpenAddVegetable(isFruit ? 'Fruit' : 'Vegetable', searchQuery.trim())}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 py-1 px-3 rounded-lg hover:bg-slate-200/70 transition cursor-pointer"
+                        >
+                          <span className="text-emerald-600 font-extrabold text-sm">➕</span>
+                          <span>Add New {isFruit ? 'Fruit' : 'Product / Vegetable'} to Bill</span>
+                        </button>
+                      </td>
                     </tr>
                   )}
                 </tbody>

@@ -48,10 +48,20 @@ export function AddCustomCustomerModal({ isOpen, onClose, onSave }) {
   );
 }
 
-export function AddVegetableModal({ isOpen, onClose, onSave, itemType = 'Vegetable' }) {
-  const [name, setName] = useState('');
+export function AddVegetableModal({ isOpen, onClose, onSave, itemType = 'Vegetable', initialName = '' }) {
+  const [name, setName] = useState(initialName || '');
   const [unitType, setUnitType] = useState('kg'); // 'kg', 'pkt_kg', 'bundle_kg', '100pcs_kg', 'pcs', 'free'
+  const [quantity, setQuantity] = useState('');
   const [rate, setRate] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(initialName || '');
+      setUnitType('kg');
+      setQuantity('');
+      setRate('');
+    }
+  }, [isOpen, initialName]);
 
   if (!isOpen) return null;
 
@@ -96,9 +106,12 @@ export function AddVegetableModal({ isOpen, onClose, onSave, itemType = 'Vegetab
       unitOptions,
       mode,
       defaultRate: rate.trim(),
+      initialWeight: quantity.trim(),
+      initialRate: rate.trim(),
       category: isFruit ? 'FRUITS' : 'VEGETABLES'
     });
     setName('');
+    setQuantity('');
     setRate('');
     setUnitType('kg');
   }
@@ -107,15 +120,16 @@ export function AddVegetableModal({ isOpen, onClose, onSave, itemType = 'Vegetab
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h3 className="font-bold text-slate-800 text-base">
-            {isFruit ? '🍎 Add Fruit to List' : '🥬 Add Vegetable to List'}
+          <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+            <span>{isFruit ? '🍎' : '🥬'}</span>
+            <span>{isFruit ? 'Add Fruit to Bill' : 'Add Product / Vegetable'}</span>
           </h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
         </div>
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              {isFruit ? 'Fruit Name *' : 'Vegetable Name *'}
+              {isFruit ? 'Fruit Name *' : 'Product / Vegetable Name *'}
             </label>
             <input
               type="text"
@@ -126,28 +140,45 @@ export function AddVegetableModal({ isOpen, onClose, onSave, itemType = 'Vegetab
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Quantity / Unit Type</label>
+            <select
+              value={unitType}
+              onChange={e => setUnitType(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer"
+            >
+              <option value="kg">kg (Standard Kilogram)</option>
+              <option value="pkt_kg">pkt &amp; kg dropdown (Mushrooms / Garlic)</option>
+              <option value="bundle_kg">bundle &amp; kg dropdown (Spinach / Mint / Coriander)</option>
+              <option value="100pcs_kg">100 pcs &amp; kg dropdown (Lemon / Lime)</option>
+              <option value="pcs">pcs (Per piece / Lump sum)</option>
+              <option value="free">Complimentary / Free</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Quantity / Unit Type</label>
-              <select
-                value={unitType}
-                onChange={e => setUnitType(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-              >
-                <option value="kg">kg (Standard Kilogram)</option>
-                <option value="pkt_kg">pkt &amp; kg dropdown (Mushrooms/Garlic)</option>
-                <option value="bundle_kg">bundle &amp; kg dropdown (Spinach/Mint/Greens)</option>
-                <option value="100pcs_kg">100 pcs &amp; kg dropdown (Lemon/Lime)</option>
-                <option value="pcs">pcs (Per piece / Lump sum)</option>
-                <option value="free">Complimentary / Free</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Rate (Rs)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Qty (for this bill, optional)
+              </label>
               <input
                 type="number"
                 step="any"
-                placeholder="Optional"
+                min="0"
+                placeholder="e.g. 5"
+                value={quantity}
+                onChange={e => setQuantity(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Rate in Rs (optional)
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 80"
                 value={rate}
                 onChange={e => setRate(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
@@ -157,8 +188,8 @@ export function AddVegetableModal({ isOpen, onClose, onSave, itemType = 'Vegetab
         </div>
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
           <button type="button" onClick={onClose} className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer">Cancel</button>
-          <button type="button" onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer">
-            {isFruit ? 'Add Fruit' : 'Add Vegetable'}
+          <button type="button" onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer">
+            {isFruit ? '+ Add Fruit' : '+ Add Product'}
           </button>
         </div>
       </div>

@@ -23,6 +23,7 @@ import {
   SAMPLE_BT_INVOICE,
   SAMPLE_LOCOMO_FRUIT_INVOICE,
   computeRecordGrandTotal,
+  computeRowAmount,
   DEFAULT_CATALOG
 } from './utils/storage';
 import { saveInvoiceToSheet } from './utils/sheetsApi';
@@ -86,6 +87,7 @@ export default function App() {
   const [isAddCustModalOpen, setIsAddCustModalOpen] = useState(false);
   const [isAddVegModalOpen, setIsAddVegModalOpen] = useState(false);
   const [addModalItemType, setAddModalItemType] = useState('Vegetable');
+  const [addModalInitialName, setAddModalInitialName] = useState('');
   const [exportModalBill, setExportModalBill] = useState(null);
 
   // Toast banner state
@@ -431,14 +433,16 @@ export default function App() {
     }
   }
 
-  function handleOpenAddVegModal(itemType = 'Vegetable') {
+  function handleOpenAddVegModal(itemType = 'Vegetable', initialName = '') {
     setAddModalItemType(itemType);
+    setAddModalInitialName(initialName);
     setIsAddVegModalOpen(true);
     navigateTo(activeTab, mobileTab, 'add-item');
   }
 
   function handleCloseAddVegModal() {
     setIsAddVegModalOpen(false);
+    setAddModalInitialName('');
     if (window.location.hash.includes('modal=')) {
       window.history.back();
     }
@@ -544,6 +548,7 @@ export default function App() {
       <AddVegetableModal
         isOpen={isAddVegModalOpen}
         itemType={addModalItemType}
+        initialName={addModalInitialName}
         onClose={handleCloseAddVegModal}
         onSave={newVeg => {
           if (newVeg.category === 'FRUITS') {
@@ -553,6 +558,29 @@ export default function App() {
             setCatalog(prev => [...prev, newVeg]);
             showToast(`✅ Added ${newVeg.name} to vegetable catalog`);
           }
+
+          // Immediately place on active bill items table
+          setBillData(prev => {
+            const currentItems = { ...(prev.items || {}) };
+            const w = newVeg.initialWeight || '';
+            const r = newVeg.initialRate || '';
+            let amt = '';
+            if (w && r && !isNaN(w) && !isNaN(r)) {
+              amt = computeRowAmount(w, r, '', newVeg.mode || 'per_kg', newVeg.unit || 'kg');
+            }
+            currentItems[newVeg.id] = {
+              weight: w,
+              rate: r,
+              amount: amt,
+              mode: newVeg.mode || 'per_kg',
+              unit: newVeg.unit || 'kg'
+            };
+            return {
+              ...prev,
+              items: currentItems
+            };
+          });
+
           handleCloseAddVegModal();
         }}
       />
