@@ -106,38 +106,34 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
   ctx.textAlign = 'left';
   ctx.fillText('INVOICE', tL, 30);
 
-  // 2. Large INVOICE Heading
+  // 2. Company Name Heading (replacing large INVOICE heading)
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 26px "Playfair Display", Georgia, serif';
-  ctx.fillText('INVOICE', tL, 46);
+  ctx.font = 'bold 24px "Playfair Display", Georgia, serif';
+  ctx.fillText(COMPANY_INFO.name, tL, 46);
 
-  // 3. Company Information Block
-  ctx.font = 'bold 12.5px "Inter", sans-serif';
-  ctx.fillText(COMPANY_INFO.name, tL, 82);
-  const compNameW = ctx.measureText(COMPANY_INFO.name).width;
-
+  // 3. Tagline & Business Details Block
   ctx.font = 'normal 12px "Inter", sans-serif';
   ctx.fillStyle = '#475569';
-  ctx.fillText(` ${COMPANY_INFO.tagline}`, tL + compNameW, 82);
+  ctx.fillText(COMPANY_INFO.tagline, tL, 78);
 
   ctx.fillStyle = '#475569';
   ctx.font = 'normal 11.5px "Inter", sans-serif';
-  ctx.fillText(`${COMPANY_INFO.address} Phone: ${COMPANY_INFO.phone}`, tL, 100);
+  ctx.fillText(`${COMPANY_INFO.address} Phone: ${COMPANY_INFO.phone}`, tL, 96);
 
   ctx.fillStyle = '#1e293b';
   ctx.font = '500 11.5px "Inter", sans-serif';
-  ctx.fillText(`Proprietor: ${COMPANY_INFO.proprietor}`, tL, 118);
+  ctx.fillText(`Proprietor: ${COMPANY_INFO.proprietor}`, tL, 114);
 
   // Horizontal Rule 1
   ctx.strokeStyle = '#e2e8f0';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(tL, 136);
-  ctx.lineTo(tR, 136);
+  ctx.moveTo(tL, 132);
+  ctx.lineTo(tR, 132);
   ctx.stroke();
 
   // 4. Invoice Metadata
-  const metaY = 144;
+  const metaY = 140;
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 11.5px "Inter", sans-serif';
   ctx.fillText('Invoice No.:', tL, metaY);

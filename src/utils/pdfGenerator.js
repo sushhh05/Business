@@ -120,29 +120,27 @@ export function generateVectorInvoicePdfBytes({
   // 1. Top subtle INVOICE label
   drawText('INVOICE', tL, 38, 'F1', 7.5, 0.55, 0.60, 0.65, 'left');
 
-  // 2. Large INVOICE Heading
-  drawText('INVOICE', tL, 64, 'F2', 22, 0.06, 0.09, 0.16, 'left');
+  // 2. Company Name Heading (replacing large INVOICE heading)
+  drawText(COMPANY_INFO.name, tL, 62, 'F2', 20, 0.06, 0.09, 0.16, 'left');
 
-  // 3. Business Details Block
-  drawText(COMPANY_INFO.name, tL, 82, 'F2', 10.5, 0.06, 0.09, 0.16, 'left');
-  const compW = approxPdfTextWidth(COMPANY_INFO.name, 10.5, true);
-  drawText(` ${COMPANY_INFO.tagline}`, tL + compW, 82, 'F1', 9.5, 0.28, 0.33, 0.40, 'left');
-  drawText(`${COMPANY_INFO.address} Phone: ${COMPANY_INFO.phone}`, tL, 96, 'F1', 9, 0.28, 0.33, 0.40, 'left');
-  drawText(`Proprietor: ${COMPANY_INFO.proprietor}`, tL, 110, 'F2', 9, 0.12, 0.16, 0.23, 'left');
+  // 3. Tagline & Business Details Block
+  drawText(COMPANY_INFO.tagline, tL, 78, 'F1', 9.5, 0.28, 0.33, 0.40, 'left');
+  drawText(`${COMPANY_INFO.address} Phone: ${COMPANY_INFO.phone}`, tL, 91, 'F1', 9, 0.28, 0.33, 0.40, 'left');
+  drawText(`Proprietor: ${COMPANY_INFO.proprietor}`, tL, 104, 'F2', 9, 0.12, 0.16, 0.23, 'left');
 
   // Divider Line 1
-  ops.push(`0.88 0.90 0.93 RG 0.8 w ${tL} ${toPdfY(120)} m ${tR.toFixed(2)} ${toPdfY(120)} l S`);
+  ops.push(`0.88 0.90 0.93 RG 0.8 w ${tL} ${toPdfY(114)} m ${tR.toFixed(2)} ${toPdfY(114)} l S`);
 
   // 4. Metadata Block
-  drawText(`Invoice No.: ${invoiceNo || '—'}`, tL, 134, 'F2', 9.5, 0.06, 0.09, 0.16, 'left');
-  drawText(`Invoice Date: ${dateStr}`, tL, 147, 'F2', 9.5, 0.06, 0.09, 0.16, 'left');
-  drawText(`Bill To (M/s): ${customerName || '—'}`, tL, 160, 'F2', 9.5, 0.06, 0.09, 0.16, 'left');
+  drawText(`Invoice No.: ${invoiceNo || '—'}`, tL, 127, 'F2', 9.5, 0.06, 0.09, 0.16, 'left');
+  drawText(`Invoice Date: ${dateStr}`, tL, 140, 'F2', 9.5, 0.06, 0.09, 0.16, 'left');
+  drawText(`Bill To (M/s): ${customerName || '—'}`, tL, 153, 'F2', 9.5, 0.06, 0.09, 0.16, 'left');
 
   // Divider Line 2
-  ops.push(`0.88 0.90 0.93 RG 0.8 w ${tL} ${toPdfY(168)} m ${tR.toFixed(2)} ${toPdfY(168)} l S`);
+  ops.push(`0.88 0.90 0.93 RG 0.8 w ${tL} ${toPdfY(161)} m ${tR.toFixed(2)} ${toPdfY(161)} l S`);
 
   // 5. Table Header
-  let curY = 176;
+  let curY = 169;
   const thH = 20;
 
   // Header fill & border

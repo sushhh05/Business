@@ -732,12 +732,11 @@ export default function BillEntry({
               {/* Title & Header Block */}
               <div className="mb-3">
                 <h1 className="serif-title text-2xl font-bold tracking-tight text-slate-950 mb-1">
-                  INVOICE
+                  {COMPANY_INFO.name}
                 </h1>
                 <div className="text-[11.5px] text-slate-800 leading-snug space-y-0.5">
-                  <p>
-                    <strong className="font-bold text-slate-950">{COMPANY_INFO.name}</strong>{' '}
-                    <span className="text-slate-600">{COMPANY_INFO.tagline}</span>
+                  <p className="text-slate-600 font-medium">
+                    {COMPANY_INFO.tagline}
                   </p>
                   <p className="text-slate-600">
                     {COMPANY_INFO.address} Phone: {COMPANY_INFO.phone}
