@@ -6,7 +6,7 @@ export const COMPANY_INFO = {
   name: 'Biroba Vegetable Suppliers',
   tagline: 'All kinds of fresh vegetables and fruits, wholesale suppliers',
   address: 'Old Bhaji Market, Byculla, Mumbai 400 027',
-  phone: '9892406958 / 7400106277',
+  phone: '9892406958 / 7039601937',
   proprietor: 'Birappa B. Nigadi'
 };
 

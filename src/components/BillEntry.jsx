@@ -573,16 +573,16 @@ export default function BillEntry({
 
           {/* High-Speed Items Data Entry Table */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-            <div className="max-h-[500px] overflow-y-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto overflow-y-auto max-h-[520px] touch-pan-x touch-pan-y overscroll-contain">
+              <table className="w-full min-w-[500px] sm:min-w-full text-left border-collapse">
                 <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
                   <tr>
-                    <th className="py-2.5 px-2.5 w-10 text-center">#</th>
-                    <th className="py-2.5 px-2.5">{isFruit ? 'Fruit' : 'Item'} (Particulars)</th>
-                    <th className="py-2.5 px-2 w-24 text-center">Unit</th>
-                    <th className="py-2.5 px-2 w-24 text-right">Qty</th>
-                    <th className="py-2.5 px-2 w-24 text-right">Rate (Rs)</th>
-                    <th className="py-2.5 px-2.5 w-28 text-right">Amount (Rs)</th>
+                    <th className="hidden sm:table-cell py-2.5 px-2.5 w-10 text-center">#</th>
+                    <th className="py-2.5 px-2.5 min-w-[130px] sm:min-w-[160px]">{isFruit ? 'Fruit' : 'Item'} (Particulars)</th>
+                    <th className="py-2.5 px-1.5 sm:px-2 w-16 sm:w-22 text-center">Unit</th>
+                    <th className="py-2.5 px-1.5 sm:px-2 w-24 sm:w-28 text-right">Qty</th>
+                    <th className="py-2.5 px-1.5 sm:px-2 w-20 sm:w-24 text-right">Rate (Rs)</th>
+                    <th className="py-2.5 px-2 sm:px-2.5 w-24 sm:w-28 text-right">Amount (Rs)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
@@ -599,13 +599,14 @@ export default function BillEntry({
                     const hasOptions = Array.isArray(veg.unitOptions) && veg.unitOptions.length > 0;
 
                     return (
-                      <tr key={veg.id} className={ordered ? 'bg-slate-50/90 font-medium' : 'hover:bg-slate-50/50'}>
-                        <td className="py-2 px-2.5 text-center text-xs text-slate-400 font-medium">{rIdx + 1}</td>
-                        <td className="py-2 px-2.5 text-slate-900 text-xs sm:text-sm">
-                          {ordered && <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-900 mr-1.5" />}
-                          {veg.name}
+                      <tr key={veg.id} className={ordered ? 'bg-emerald-50/50 font-medium' : 'hover:bg-slate-50/50'}>
+                        <td className="hidden sm:table-cell py-2 px-2.5 text-center text-xs text-slate-400 font-medium">{rIdx + 1}</td>
+                        <td className="py-2 px-2 sm:px-2.5 text-slate-900 text-xs sm:text-sm">
+                          {ordered && <span className="inline-block w-2 h-2 rounded-full bg-emerald-600 mr-1.5 align-middle" />}
+                          <span className="text-[10.5px] font-bold text-slate-400 mr-1 sm:hidden">{rIdx + 1}.</span>
+                          <span className={ordered ? 'font-bold text-slate-950' : 'font-medium'}>{veg.name}</span>
                         </td>
-                        <td className="py-1.5 px-1.5 text-center">
+                        <td className="py-1.5 px-1 sm:px-1.5 text-center">
                           {hasOptions ? (
                             <select
                               value={currentUnit}
@@ -615,22 +616,23 @@ export default function BillEntry({
                                 const newMode = newU === '100 pcs' ? 'per_100' : 'per_kg';
                                 updateItem(veg.id, { unit: newU, mode: newMode });
                               }}
-                              className="px-1.5 py-1 rounded border border-slate-300 text-xs bg-white text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-slate-900"
+                              className="px-1 py-1 rounded border border-slate-300 text-[11px] sm:text-xs bg-white text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-slate-900"
                             >
                               {veg.unitOptions.map(opt => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
                             </select>
                           ) : (
-                            <span className="text-xs font-semibold text-slate-500 uppercase">
+                            <span className="inline-block text-[10.5px] sm:text-xs font-bold text-slate-600 uppercase bg-slate-100 px-1 py-0.5 rounded">
                               {currentUnit || 'kg'}
                             </span>
                           )}
                         </td>
-                        <td className="py-1.5 px-1.5">
+                        <td className="py-1.5 px-1 sm:px-1.5">
                           <input
                             ref={el => (rowRefs.current[`${veg.id}-qty`] = el)}
                             type="number"
+                            inputMode="decimal"
                             step="any"
                             min="0"
                             enterKeyHint="next"
@@ -638,13 +640,18 @@ export default function BillEntry({
                             value={st.weight}
                             onChange={e => updateItem(veg.id, { weight: e.target.value })}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'qty', rIdx)}
-                            className="w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                            className={`w-full min-w-[72px] sm:min-w-[84px] px-1.5 sm:px-2 py-1.5 rounded-lg border text-right text-base sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900 transition ${
+                              ordered
+                                ? 'bg-white border-emerald-500 text-slate-950 ring-1 ring-emerald-400/50 shadow-2xs'
+                                : 'bg-white border-slate-300 text-slate-800 hover:border-slate-400'
+                            }`}
                           />
                         </td>
-                        <td className="py-1.5 px-1.5">
+                        <td className="py-1.5 px-1 sm:px-1.5">
                           <input
                             ref={el => (rowRefs.current[`${veg.id}-rate`] = el)}
                             type="number"
+                            inputMode="decimal"
                             step="any"
                             min="0"
                             enterKeyHint="next"
@@ -653,15 +660,16 @@ export default function BillEntry({
                             value={st.mode === 'lump_sum' || st.mode === 'free' ? '' : st.rate}
                             onChange={e => updateItem(veg.id, { rate: e.target.value })}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'rate', rIdx)}
-                            className={`w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
-                              st.mode === 'lump_sum' || st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white'
+                            className={`w-full min-w-[62px] sm:min-w-[72px] px-1.5 sm:px-2 py-1.5 rounded-lg border text-right text-base sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
+                              st.mode === 'lump_sum' || st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white border-slate-300 text-slate-800 hover:border-slate-400'
                             }`}
                           />
                         </td>
-                        <td className="py-1.5 px-2.5">
+                        <td className="py-1.5 px-1.5 sm:px-2.5">
                           <input
                             ref={el => (rowRefs.current[`${veg.id}-amt`] = el)}
                             type="number"
+                            inputMode="decimal"
                             step="any"
                             min="0"
                             enterKeyHint="next"
@@ -677,8 +685,8 @@ export default function BillEntry({
                               }
                             }}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'amt', rIdx)}
-                            className={`w-full px-2 py-1 rounded border border-slate-300 text-right text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
-                              st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-900'
+                            className={`w-full min-w-[68px] sm:min-w-[80px] px-1.5 sm:px-2 py-1.5 rounded-lg border text-right text-base sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
+                              st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white border-slate-300 text-slate-950 hover:border-slate-400'
                             }`}
                           />
                         </td>
@@ -727,6 +735,7 @@ export default function BillEntry({
               <input
                 id="inputTempoHire"
                 type="number"
+                inputMode="decimal"
                 step="any"
                 min="0"
                 placeholder="0"

@@ -35,6 +35,18 @@
       font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
     }
 
+    /* Remove number input spinner arrows so digits have 100% visible space */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none !important;
+      appearance: none !important;
+      margin: 0 !important;
+    }
+    input[type=number] {
+      -moz-appearance: textfield !important;
+      appearance: textfield !important;
+    }
+
     /* Clean Modern Corporate Invoice Styling */
     .invoice-sheet {
       background: #ffffff;

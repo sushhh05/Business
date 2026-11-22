@@ -502,12 +502,12 @@ export function ScanSlipModal({
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                   <div className="overflow-x-auto max-h-72">
-                    <table className="w-full text-left text-xs border-collapse">
+                    <table className="w-full min-w-[540px] text-left text-xs border-collapse">
                       <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 z-10 text-[11px] text-slate-600 font-bold">
                         <tr>
                           <th className="py-2 px-2.5">Detected on Slip</th>
                           <th className="py-2 px-2.5">Matched Product</th>
-                          <th className="py-2 px-2 text-center w-16">Qty</th>
+                          <th className="py-2 px-2 text-center w-20">Qty</th>
                           <th className="py-2 px-2 text-center w-20">Unit</th>
                           <th className="py-2 px-2 text-right w-24">Rate (Rs)</th>
                           <th className="py-2 px-2.5 text-right w-20">Amt (Rs)</th>
@@ -557,11 +557,12 @@ export function ScanSlipModal({
                               <td className="py-2 px-2 text-center">
                                 <input
                                   type="number"
+                                  inputMode="decimal"
                                   step="any"
                                   min="0"
                                   value={row.quantity}
                                   onChange={e => handleUpdateItem(row.id, { quantity: e.target.value })}
-                                  className="w-16 px-1.5 py-1 text-center rounded-md border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                                  className="w-18 min-w-[72px] px-2 py-1 text-center rounded-md border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 bg-white"
                                 />
                               </td>
 
@@ -588,12 +589,13 @@ export function ScanSlipModal({
                               <td className="py-2 px-2 text-right">
                                 <input
                                   type="number"
+                                  inputMode="decimal"
                                   step="any"
                                   min="0"
                                   placeholder="Rate"
                                   value={row.rate}
                                   onChange={e => handleUpdateItem(row.id, { rate: e.target.value })}
-                                  className="w-20 px-1.5 py-1 text-right rounded-md border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                                  className="w-20 min-w-[72px] px-2 py-1 text-right rounded-md border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 bg-white"
                                 />
                                 {row.rateSource && (
                                   <span className={`block text-[9px] font-medium leading-tight truncate max-w-[90px] text-right mt-0.5 ${
