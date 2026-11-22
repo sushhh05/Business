@@ -33,10 +33,13 @@ export default function BillEntry({
   const [filterMode, setFilterMode] = useState('ALL');
   const [showAllInPreview, setShowAllInPreview] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [activeFocusedRow, setActiveFocusedRow] = useState(null);
   const rowRefs = useRef({});
 
   const isFruit = billData.billCategory === 'FRUITS';
   const { invoiceNo, customerName, date, paymentStatus, tempoHire, items = {} } = billData;
+
+  const activeFocusedVeg = catalog.find(v => v.id === activeFocusedRow);
 
   // Filter catalog rows
   const filteredCatalog = catalog.filter((veg, idx) => {
@@ -571,14 +574,47 @@ export default function BillEntry({
             </div>
           </div>
 
+          {/* Active Editing Product Sticky Header Banner */}
+          {activeFocusedVeg && (
+            <div className="sticky top-14 sm:top-16 z-20 bg-slate-950 text-white px-3.5 py-2 rounded-xl shadow-lg border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm animate-in fade-in duration-150">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-base sm:text-lg shrink-0">{isFruit ? '🍎' : '🥬'}</span>
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider leading-none">
+                    Editing Item
+                  </span>
+                  <span className="font-extrabold text-sm sm:text-base text-white truncate block">
+                    {activeFocusedVeg.name}
+                  </span>
+                </div>
+                <span className="ml-1 text-[11px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 uppercase shrink-0">
+                  {items[activeFocusedVeg.id]?.unit || activeFocusedVeg.unit || 'kg'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm font-mono ml-auto shrink-0">
+                <span className="bg-slate-900/90 px-2 py-0.5 rounded border border-slate-800">
+                  Qty: <strong className="text-amber-300 font-bold">{items[activeFocusedVeg.id]?.weight || '0'}</strong>
+                </span>
+                <span className="bg-slate-900/90 px-2 py-0.5 rounded border border-slate-800">
+                  Rate: <strong className="text-emerald-300 font-bold">{items[activeFocusedVeg.id]?.rate ? `₹${items[activeFocusedVeg.id].rate}` : '—'}</strong>
+                </span>
+                <span className="bg-slate-900/90 px-2 py-0.5 rounded border border-slate-800">
+                  Total: <strong className="text-cyan-300 font-bold">{items[activeFocusedVeg.id]?.amount ? `₹${items[activeFocusedVeg.id].amount}` : '₹0'}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* High-Speed Items Data Entry Table */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[520px] touch-pan-x touch-pan-y overscroll-contain">
               <table className="w-full min-w-[500px] sm:min-w-full text-left border-collapse">
-                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
+                <thead className="bg-slate-50 sticky top-0 z-20 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
                   <tr>
                     <th className="hidden sm:table-cell py-2.5 px-2.5 w-10 text-center">#</th>
-                    <th className="py-2.5 px-2.5 min-w-[130px] sm:min-w-[160px]">{isFruit ? 'Fruit' : 'Item'} (Particulars)</th>
+                    <th className="sticky left-0 z-30 bg-slate-50 py-2.5 px-2.5 min-w-[135px] sm:min-w-[170px] border-r border-slate-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
+                      {isFruit ? 'Fruit' : 'Item'} (Particulars)
+                    </th>
                     <th className="py-2.5 px-1.5 sm:px-2 w-16 sm:w-22 text-center">Unit</th>
                     <th className="py-2.5 px-1.5 sm:px-2 w-24 sm:w-28 text-right">Qty</th>
                     <th className="py-2.5 px-1.5 sm:px-2 w-20 sm:w-24 text-right">Rate (Rs)</th>
@@ -597,14 +633,28 @@ export default function BillEntry({
                     const ordered = isItemOrdered(st);
                     const currentUnit = st.unit || veg.unit || (st.mode === 'per_100' ? '100 pcs' : 'kg');
                     const hasOptions = Array.isArray(veg.unitOptions) && veg.unitOptions.length > 0;
+                    const isFocused = activeFocusedRow === veg.id;
 
                     return (
-                      <tr key={veg.id} className={ordered ? 'bg-emerald-50/50 font-medium' : 'hover:bg-slate-50/50'}>
+                      <tr
+                        key={veg.id}
+                        className={`transition ${
+                          isFocused
+                            ? 'bg-amber-50/70 ring-1 ring-amber-400'
+                            : (ordered ? 'bg-emerald-50/50 font-medium' : 'hover:bg-slate-50/50')
+                        }`}
+                      >
                         <td className="hidden sm:table-cell py-2 px-2.5 text-center text-xs text-slate-400 font-medium">{rIdx + 1}</td>
-                        <td className="py-2 px-2 sm:px-2.5 text-slate-900 text-xs sm:text-sm">
+                        <td
+                          className={`sticky left-0 z-10 py-2 px-2 sm:px-2.5 text-slate-900 text-xs sm:text-sm border-r border-slate-200/90 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] transition ${
+                            isFocused
+                              ? 'bg-amber-100/90 font-bold text-slate-950'
+                              : (ordered ? 'bg-emerald-50 font-semibold' : 'bg-white')
+                          }`}
+                        >
                           {ordered && <span className="inline-block w-2 h-2 rounded-full bg-emerald-600 mr-1.5 align-middle" />}
                           <span className="text-[10.5px] font-bold text-slate-400 mr-1 sm:hidden">{rIdx + 1}.</span>
-                          <span className={ordered ? 'font-bold text-slate-950' : 'font-medium'}>{veg.name}</span>
+                          <span className={ordered || isFocused ? 'font-bold text-slate-950' : 'font-medium'}>{veg.name}</span>
                         </td>
                         <td className="py-1.5 px-1 sm:px-1.5 text-center">
                           {hasOptions ? (
@@ -637,13 +687,17 @@ export default function BillEntry({
                             min="0"
                             enterKeyHint="next"
                             placeholder="0"
+                            title={`${veg.name} Quantity`}
                             value={st.weight}
+                            onFocus={() => setActiveFocusedRow(veg.id)}
                             onChange={e => updateItem(veg.id, { weight: e.target.value })}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'qty', rIdx)}
                             className={`w-full min-w-[72px] sm:min-w-[84px] px-1.5 sm:px-2 py-1.5 rounded-lg border text-right text-base sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900 transition ${
-                              ordered
-                                ? 'bg-white border-emerald-500 text-slate-950 ring-1 ring-emerald-400/50 shadow-2xs'
-                                : 'bg-white border-slate-300 text-slate-800 hover:border-slate-400'
+                              isFocused
+                                ? 'bg-white border-amber-500 ring-2 ring-amber-400 text-slate-950 shadow-xs'
+                                : (ordered
+                                  ? 'bg-white border-emerald-500 text-slate-950 ring-1 ring-emerald-400/50 shadow-2xs'
+                                  : 'bg-white border-slate-300 text-slate-800 hover:border-slate-400')
                             }`}
                           />
                         </td>
@@ -656,12 +710,18 @@ export default function BillEntry({
                             min="0"
                             enterKeyHint="next"
                             placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : 'Rate'}
+                            title={`${veg.name} Rate`}
                             disabled={st.mode === 'lump_sum' || st.mode === 'free'}
                             value={st.mode === 'lump_sum' || st.mode === 'free' ? '' : st.rate}
+                            onFocus={() => setActiveFocusedRow(veg.id)}
                             onChange={e => updateItem(veg.id, { rate: e.target.value })}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'rate', rIdx)}
                             className={`w-full min-w-[62px] sm:min-w-[72px] px-1.5 sm:px-2 py-1.5 rounded-lg border text-right text-base sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
-                              st.mode === 'lump_sum' || st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white border-slate-300 text-slate-800 hover:border-slate-400'
+                              st.mode === 'lump_sum' || st.mode === 'free'
+                                ? 'bg-slate-100 text-slate-400'
+                                : (isFocused
+                                  ? 'bg-white border-amber-500 ring-2 ring-amber-400 text-slate-950'
+                                  : 'bg-white border-slate-300 text-slate-800 hover:border-slate-400')
                             }`}
                           />
                         </td>
@@ -674,8 +734,10 @@ export default function BillEntry({
                             min="0"
                             enterKeyHint="next"
                             placeholder={st.mode === 'free' ? 'Free' : '0'}
+                            title={`${veg.name} Amount`}
                             disabled={st.mode === 'free'}
                             value={st.mode === 'free' ? '' : st.amount}
+                            onFocus={() => setActiveFocusedRow(veg.id)}
                             onChange={e => {
                               const val = e.target.value;
                               if (String(st.rate).trim() === '' && val.trim() !== '') {
@@ -686,7 +748,11 @@ export default function BillEntry({
                             }}
                             onKeyDown={e => handleKeyNavigation(e, veg.id, 'amt', rIdx)}
                             className={`w-full min-w-[68px] sm:min-w-[80px] px-1.5 sm:px-2 py-1.5 rounded-lg border text-right text-base sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900 ${
-                              st.mode === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-white border-slate-300 text-slate-950 hover:border-slate-400'
+                              st.mode === 'free'
+                                ? 'bg-slate-100 text-slate-400'
+                                : (isFocused
+                                  ? 'bg-white border-amber-500 ring-2 ring-amber-400 text-slate-950'
+                                  : 'bg-white border-slate-300 text-slate-950 hover:border-slate-400')
                             }`}
                           />
                         </td>
