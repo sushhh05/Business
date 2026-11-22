@@ -80,8 +80,14 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
   const topMetaH = 190;
   const tableTopY = topMetaH;
   const tableH = thH + (rows.length * rowH);
-  const bottomBoxH = 175;
-  const totalH = tableTopY + tableH + bottomBoxH;
+
+  // Bottom section needs: divider (14) + totals box (72) + words (38) + signature (54) + safe margin (40)
+  const requiredBottomH = 220;
+  const contentNeededH = tableTopY + tableH + requiredBottomH;
+
+  // Standard mobile camera photo aspect ratio (3:4 portrait like smartphone capture)
+  const minMobilePhotoH = Math.round(W * (4 / 3)); // 680 * (4 / 3) = ~907px (1360 × 1814 at scale 2)
+  const totalH = Math.max(contentNeededH, minMobilePhotoH);
 
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(W * scale);
@@ -307,7 +313,7 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
   ctx.fillText(`Rs ${formatMoney(grandTotal)}`, tR - 8, totY + 12);
 
   // 9. Amount in Words
-  let wordY = totY + 36;
+  let wordY = totY + 38;
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 11.5px "Inter", sans-serif';
   ctx.textAlign = 'left';
@@ -318,25 +324,23 @@ export async function generateInvoiceCanvasBlob(rec, catalog) {
   // Divider line
   ctx.strokeStyle = '#e2e8f0';
   ctx.beginPath();
-  ctx.moveTo(tL, wordY + 14);
-  ctx.lineTo(tR, wordY + 14);
+  ctx.moveTo(tL, wordY + 16);
+  ctx.lineTo(tR, wordY + 16);
   ctx.stroke();
 
   // 10. Signatory Section
-  const sigY = wordY + 28;
+  const sigY = wordY + 30;
   ctx.font = 'bold 12px "Inter", sans-serif';
   ctx.fillText(`For ${COMPANY_INFO.name}`, tL, sigY);
 
   ctx.font = 'normal 11.5px "Inter", sans-serif';
   ctx.fillStyle = '#334155';
-  ctx.fillText('Authorised Signatory: ______________________', tL, sigY + 18);
+  ctx.fillText('Authorised Signatory: ______________________', tL, sigY + 22);
 
-  // 11. Footer
+  // 11. Footer (Cleanly placed at the very bottom with safe clearance, zero overlap)
   const footerY = totalH - 24;
   ctx.fillStyle = '#94a3b8';
-  ctx.font = 'normal 9px "Inter", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('INVOICE', tL, footerY);
+  ctx.font = 'normal 9.5px "Inter", sans-serif';
   ctx.textAlign = 'right';
   ctx.fillText('Page 1 of 1', tR, footerY);
 

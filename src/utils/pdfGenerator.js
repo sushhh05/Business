@@ -221,7 +221,6 @@ export function generateVectorInvoicePdfBytes({
   drawText('Authorised Signatory: ______________________', tL, sigY + 14, 'F1', 8.5, 0.25, 0.30, 0.35, 'left');
 
   // 10. Footer (strictly Single Page)
-  drawText('INVOICE', tL, pageH - 24, 'F1', 7.5, 0.55, 0.60, 0.65, 'left');
   drawText('Page 1 of 1', tR, pageH - 24, 'F1', 7.5, 0.55, 0.60, 0.65, 'right');
 
   // Assemble SINGLE-PAGE PDF Document

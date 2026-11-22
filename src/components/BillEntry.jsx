@@ -810,19 +810,36 @@ export default function BillEntry({
                 className="w-28 px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold text-right bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
             </div>
-            <div className="flex items-center justify-between sm:justify-end gap-3">
+            <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2.5">
               <div className="text-right">
                 <span className="text-xs text-slate-500 block">Subtotal: Rs {formatMoney(subtotal)}</span>
                 <span className="text-sm sm:text-base font-extrabold text-slate-900">Total Due: Rs {formatMoney(grandTotal)}</span>
               </div>
-              <button
-                type="button"
-                onClick={onSaveBill}
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>💾</span>
-                <span>Save Bill</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileTab('PREVIEW');
+                    const previewEl = document.getElementById('printableBillArea');
+                    if (previewEl) {
+                      previewEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs sm:text-sm border border-slate-300 shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  title="View formatted single-page invoice preview"
+                >
+                  <span>👁️</span>
+                  <span>Invoice Preview</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onSaveBill}
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <span>💾</span>
+                  <span>Save Bill</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1037,8 +1054,7 @@ export default function BillEntry({
               </div>
 
               {/* Subtle Footer */}
-              <div className="mt-4 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-400">
-                <span>INVOICE</span>
+              <div className="mt-6 pt-2 border-t border-slate-100 flex items-center justify-end text-[9px] text-slate-400">
                 <span>Page 1 of 1</span>
               </div>
             </div>
