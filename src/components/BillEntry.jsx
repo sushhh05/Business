@@ -67,18 +67,25 @@ export default function BillEntry({
     setBillData(prev => {
       const currentItem = prev.items[vegId] || {
         weight: '',
-        rate: vegMeta?.defaultRate || '',
+        rate: '',
         amount: '',
         mode: vegMeta?.mode || 'per_kg',
         unit: vegMeta?.unit || (vegMeta?.mode === 'per_100' ? '100 pcs' : 'kg')
       };
       const updated = { ...currentItem, ...updates };
 
-      // Auto-fill default rate if empty when quantity is typed
+      // Auto-fill rate ONLY from recently/last generated bill of this restaurant
+      // If this is the first bill of this restaurant or item was not in previous bill -> strictly blank!
       if (updates.weight !== undefined && String(updates.weight).trim() !== '') {
-        if ((!updated.rate || String(updated.rate).trim() === '' || String(updated.rate).trim() === '0') && vegMeta?.defaultRate) {
+        if (!updated.rate || String(updated.rate).trim() === '' || String(updated.rate).trim() === '0') {
           if (updated.mode !== 'lump_sum' && updated.mode !== 'free') {
-            updated.rate = String(vegMeta.defaultRate);
+            const targetCustomer = prev.customerName || customerName || '';
+            const lastRates = getCustomerLastRates(targetCustomer, records);
+            if (lastRates && lastRates[vegId]?.rate && parseFloat(lastRates[vegId].rate) > 0) {
+              updated.rate = String(lastRates[vegId].rate);
+            } else {
+              updated.rate = '';
+            }
           }
         }
       }
@@ -102,6 +109,45 @@ export default function BillEntry({
     });
   }
 
+  function handleCustomerChange(newCustomer) {
+    const lastRates = getCustomerLastRates(newCustomer, records);
+    setBillData(prev => {
+      const updatedItems = { ...prev.items };
+      // For any item that already has quantity entered, re-fetch rates from this restaurant's last bill
+      Object.keys(updatedItems).forEach(vegId => {
+        const it = updatedItems[vegId];
+        if (!it) return;
+        const hasQty = String(it.weight || '').trim() !== '';
+
+        if (hasQty && it.mode !== 'lump_sum' && it.mode !== 'free') {
+          if (lastRates[vegId]?.rate && parseFloat(lastRates[vegId].rate) > 0) {
+            it.rate = String(lastRates[vegId].rate);
+            it.amount = computeRowAmount(it.weight, it.rate, '', it.mode, it.unit);
+          } else {
+            // First bill of that restaurant or item never billed before -> show blank!
+            it.rate = '';
+            it.amount = '';
+          }
+        }
+      });
+
+      return {
+        ...prev,
+        customerName: newCustomer,
+        items: updatedItems
+      };
+    });
+
+    if (newCustomer) {
+      const ratesCount = Object.keys(lastRates).length;
+      if (ratesCount > 0) {
+        showToast(`📋 Loaded past rates for ${newCustomer}`);
+      } else {
+        showToast(`🆕 ${newCustomer} (First bill — rates will be blank)`, 'info');
+      }
+    }
+  }
+
   function handleApplyScannedItems({ customer, items: scannedRows, isNewBill = true }) {
     const targetCustomer = customer || customerName || '';
     const lastRates = getCustomerLastRates(targetCustomer, records);
@@ -119,14 +165,12 @@ export default function BillEntry({
       // Rate priority:
       // 1. Rate explicitly confirmed in modal
       // 2. Last rate charged to this restaurant in previous bills
-      // 3. Catalog default rate
+      // If neither exists (first bill or no prior rate), rate remains BLANK ('')
       let rateToUse = '';
       if (modalRate && parseFloat(modalRate) > 0) {
         rateToUse = String(modalRate);
       } else if (lastRates[itemId]?.rate && parseFloat(lastRates[itemId].rate) > 0) {
         rateToUse = String(lastRates[itemId].rate);
-      } else if (vegMeta.defaultRate) {
-        rateToUse = String(vegMeta.defaultRate);
       }
 
       let calculatedAmount = '';
@@ -152,7 +196,13 @@ export default function BillEntry({
     }));
 
     if (showToast) {
-      showToast(`✨ Created fresh bill for ${targetCustomer} with ${appliedCount} items! Hotel rates loaded.`, 'success');
+      const hasHotelRates = Object.keys(lastRates).length > 0;
+      showToast(
+        hasHotelRates
+          ? `✨ Created fresh bill for ${targetCustomer} (${appliedCount} items, hotel rates loaded)`
+          : `✨ Created fresh bill for ${targetCustomer} (first bill — enter rates manually)`,
+        'success'
+      );
     }
   }
 
@@ -212,7 +262,7 @@ export default function BillEntry({
     if (!confirm('Clear all quantities for the current bill?')) return;
     const cleared = {};
     catalog.forEach(v => {
-      cleared[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg', unit: v.unit || 'kg' };
+      cleared[v.id] = { weight: '', rate: '', amount: '', mode: v.mode || 'per_kg', unit: v.unit || 'kg' };
     });
     setBillData(prev => ({ ...prev, tempoHire: '', items: cleared }));
     showToast('Cleared all quantities');
@@ -386,7 +436,7 @@ export default function BillEntry({
                     if (val === '__ADD_NEW__') {
                       onOpenAddCustomCustomer();
                     } else {
-                      setBillData(prev => ({ ...prev, customerName: val }));
+                      handleCustomerChange(val);
                     }
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer"
@@ -420,7 +470,7 @@ export default function BillEntry({
                   <button
                     key={r}
                     type="button"
-                    onClick={() => setBillData(prev => ({ ...prev, customerName: r }))}
+                    onClick={() => handleCustomerChange(r)}
                     className={`text-[11px] px-2.5 py-1 rounded-md font-semibold border transition cursor-pointer whitespace-nowrap ${
                       customerName === r
                         ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
@@ -518,7 +568,7 @@ export default function BillEntry({
                   {filteredCatalog.map((veg, rIdx) => {
                     const st = items[veg.id] || {
                       weight: '',
-                      rate: veg.defaultRate || '',
+                      rate: '',
                       amount: '',
                       mode: veg.mode || 'per_kg',
                       unit: veg.unit || (veg.mode === 'per_100' ? '100 pcs' : 'kg')
@@ -577,7 +627,7 @@ export default function BillEntry({
                             step="any"
                             min="0"
                             enterKeyHint="next"
-                            placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : (veg.defaultRate ? `Rs ${veg.defaultRate}` : 'Rate')}
+                            placeholder={st.mode === 'lump_sum' || st.mode === 'free' ? '-' : 'Rate'}
                             disabled={st.mode === 'lump_sum' || st.mode === 'free'}
                             value={st.mode === 'lump_sum' || st.mode === 'free' ? '' : st.rate}
                             onChange={e => updateItem(veg.id, { rate: e.target.value })}

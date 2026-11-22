@@ -15,7 +15,7 @@ export const STORAGE_KEYS = {
   FRUIT_CATALOG: 'biroba_fruit_catalog_v3',
   RECORDS: 'biroba_invoice_records_v3',
   CUSTOM_CUSTOMERS: 'biroba_custom_customers_v3',
-  ACTIVE_DRAFT: 'biroba_active_bill_draft_v5',
+  ACTIVE_DRAFT: 'biroba_active_bill_draft_v6',
   LAST_ACTIVE_TAB: 'biroba_last_active_tab_v1'
 };
 
@@ -166,7 +166,15 @@ export function getCustomerLastRates(customerName, records = null) {
   const cleanName = customerName.trim().toUpperCase();
 
   const customerBills = allRecords
-    .filter(r => r.customerName && r.customerName.trim().toUpperCase() === cleanName)
+    .filter(r => {
+      if (!r.customerName) return false;
+      const rName = r.customerName.trim().toUpperCase();
+      if (rName === cleanName) return true;
+      // Lenient alias match (e.g., "BHAGAT TARACHAND" vs "BHAGAT TARACHAND (B.T)")
+      const normR = rName.replace(/[^A-Z0-9]/g, '');
+      const normTarget = cleanName.replace(/[^A-Z0-9]/g, '');
+      return normR && normTarget && (normR === normTarget || normR.includes(normTarget) || normTarget.includes(normR));
+    })
     .sort((a, b) => {
       const dComp = (b.date || '').localeCompare(a.date || '');
       if (dComp !== 0) return dComp;

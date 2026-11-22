@@ -47,7 +47,7 @@ export default function App() {
     (vegCatalog || []).forEach(v => {
       blankItems[v.id] = {
         weight: '',
-        rate: v.defaultRate || '',
+        rate: '',
         amount: '',
         mode: v.mode || 'per_kg',
         unit: v.unit || (v.mode === 'per_100' ? '100 pcs' : 'kg')
@@ -306,7 +306,7 @@ export default function App() {
     const activeCat = isFruit ? fruitCatalog : catalog;
     const blankItems = {};
     activeCat.forEach(v => {
-      blankItems[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg' };
+      blankItems[v.id] = { weight: '', rate: '', amount: '', mode: v.mode || 'per_kg' };
     });
     const blankBill = {
       recordId: `rec_${Date.now()}`,
@@ -363,7 +363,7 @@ export default function App() {
       if (record.items && record.items[v.id]) {
         filledItems[v.id] = { ...record.items[v.id] };
       } else {
-        filledItems[v.id] = { weight: '', rate: v.defaultRate || '', amount: '', mode: v.mode || 'per_kg' };
+        filledItems[v.id] = { weight: '', rate: '', amount: '', mode: v.mode || 'per_kg' };
       }
     });
 

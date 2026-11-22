@@ -53,8 +53,8 @@ export function ScanSlipModal({
         const catItem = catalog.find(v => v.id === row.matchedItemId);
         const lastRateInfo = customerRatesMap[row.matchedItemId];
 
-        // Determine rate from this customer's last bill, or catalog fallback
-        const rateToUse = lastRateInfo?.rate || catItem?.defaultRate || '';
+        // Determine rate strictly from this customer's last bill; if first bill or not found, leave blank
+        const rateToUse = lastRateInfo?.rate || '';
         const mode = row.unit === '100 pcs' ? 'per_100' : (catItem?.mode || 'per_kg');
         const amount = computeRowAmount(row.quantity, rateToUse, '', mode, row.unit);
 
@@ -62,7 +62,7 @@ export function ScanSlipModal({
           ...row,
           rate: rateToUse,
           amount,
-          rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'Catalog Rate'
+          rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'First Bill / Manual'
         };
       })
     );
@@ -133,7 +133,7 @@ export function ScanSlipModal({
 
         const itemId = matchedItem ? matchedItem.id : '';
         const lastRateInfo = itemId ? ratesForCust[itemId] : null;
-        const rateToUse = lastRateInfo?.rate || matchedItem?.defaultRate || '';
+        const rateToUse = lastRateInfo?.rate || '';
         const mode = resolvedUnit === '100 pcs' ? 'per_100' : (matchedItem?.mode || 'per_kg');
         const amount = computeRowAmount(it.quantity || '1', rateToUse, '', mode, resolvedUnit);
 
@@ -145,7 +145,7 @@ export function ScanSlipModal({
           unit: resolvedUnit,
           rate: rateToUse,
           amount,
-          rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'Catalog Rate',
+          rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'First Bill / Manual',
           score,
           confidence
         };
@@ -183,7 +183,7 @@ export function ScanSlipModal({
     const rows = parsed.map(row => {
       const catItem = catalog.find(v => v.id === row.matchedItemId);
       const lastRateInfo = row.matchedItemId ? customerRatesMap[row.matchedItemId] : null;
-      const rateToUse = lastRateInfo?.rate || catItem?.defaultRate || '';
+      const rateToUse = lastRateInfo?.rate || '';
       const mode = row.unit === '100 pcs' ? 'per_100' : (catItem?.mode || 'per_kg');
       const amount = computeRowAmount(row.quantity, rateToUse, '', mode, row.unit);
 
@@ -191,7 +191,7 @@ export function ScanSlipModal({
         ...row,
         rate: rateToUse,
         amount,
-        rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'Catalog Rate'
+        rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'First Bill / Manual'
       };
     });
 
@@ -211,8 +211,8 @@ export function ScanSlipModal({
           if (itemObj) {
             updated.unit = resolveItemUnit(itemObj, row.unit);
             const lastRateInfo = customerRatesMap[updates.matchedItemId];
-            updated.rate = lastRateInfo?.rate || itemObj.defaultRate || '';
-            updated.rateSource = lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'Catalog Rate';
+            updated.rate = lastRateInfo?.rate || '';
+            updated.rateSource = lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'First Bill / Manual';
           }
         }
 
@@ -233,7 +233,7 @@ export function ScanSlipModal({
   function handleAddNewRow() {
     const firstItem = catalog[0];
     const lastRateInfo = firstItem ? customerRatesMap[firstItem.id] : null;
-    const rateToUse = lastRateInfo?.rate || firstItem?.defaultRate || '';
+    const rateToUse = lastRateInfo?.rate || '';
 
     setScannedItems(prev => [
       ...prev,
@@ -245,7 +245,7 @@ export function ScanSlipModal({
         unit: firstItem ? (firstItem.unit || 'kg') : 'kg',
         rate: rateToUse,
         amount: rateToUse,
-        rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'Catalog Rate',
+        rateSource: lastRateInfo ? `From Last Bill (#${lastRateInfo.invoiceNo})` : 'First Bill / Manual',
         score: 100,
         confidence: 'high'
       }
@@ -449,7 +449,7 @@ export function ScanSlipModal({
                       <span>Customer / Hotel for New Bill:</span>
                     </label>
                     <span className="text-[10.5px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Auto-Loads Hotel&apos;s Last Rates
+                      Past Rates Only (Blank if First Bill)
                     </span>
                   </div>
                   <select
@@ -599,7 +599,7 @@ export function ScanSlipModal({
                                   <span className={`block text-[9px] font-medium leading-tight truncate max-w-[90px] text-right mt-0.5 ${
                                     row.rateSource.startsWith('From Last') ? 'text-emerald-700' : 'text-slate-400'
                                   }`} title={row.rateSource}>
-                                    {row.rateSource.startsWith('From Last') ? '🔄 Last bill' : 'Default'}
+                                    {row.rateSource.startsWith('From Last') ? '🔄 Last bill' : 'Blank / Manual'}
                                   </span>
                                 )}
                               </td>
