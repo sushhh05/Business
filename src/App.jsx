@@ -24,9 +24,12 @@ import {
   SAMPLE_LOCOMO_FRUIT_INVOICE,
   computeRecordGrandTotal,
   computeRowAmount,
-  DEFAULT_CATALOG
+  DEFAULT_CATALOG,
+  loadSyncQueue,
+  addToSyncQueue,
+  removeFromSyncQueue
 } from './utils/storage';
-import { saveInvoiceToSheet } from './utils/sheetsApi';
+import { saveInvoiceToSheet, flushSyncQueue } from './utils/sheetsApi';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('INVOICE'); // INVOICE, SHEET, RECORDS, CATALOG
@@ -89,6 +92,87 @@ export default function App() {
   const [addModalItemType, setAddModalItemType] = useState('Vegetable');
   const [addModalInitialName, setAddModalInitialName] = useState('');
   const [exportModalBill, setExportModalBill] = useState(null);
+
+  // Offline Sync Queue state & connectivity
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => loadSyncQueue().length);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+
+  // Manual or automatic sync flush
+  function handleFlushQueue() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      showToast('⚠️ Device is offline • Will auto-sync when network returns');
+      return;
+    }
+    showToast('🔄 Syncing offline bills to Google Sheets...');
+    flushSyncQueue((syncedItem, remaining) => {
+      setPendingSyncCount(remaining);
+    }).then(res => {
+      const remaining = loadSyncQueue().length;
+      setPendingSyncCount(remaining);
+      if (res.syncedCount > 0) {
+        showToast(`📊 Successfully synced ${res.syncedCount} offline bill(s) to Google Sheets!`);
+      } else if (res.failedCount > 0) {
+        showToast(`⚠️ Sync incomplete. ${res.failedCount} bill(s) remaining in queue.`);
+      } else {
+        showToast('✅ All bills are synced with Google Sheets');
+      }
+    });
+  }
+
+  // Network online/offline event listeners & auto-flusher
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+      showToast('🌐 Internet restored • Auto-syncing pending bills...');
+      flushSyncQueue((syncedItem, remaining) => {
+        setPendingSyncCount(remaining);
+      }).then(res => {
+        const remaining = loadSyncQueue().length;
+        setPendingSyncCount(remaining);
+        if (res.syncedCount > 0) {
+          showToast(`📊 Synced ${res.syncedCount} offline bill(s) to Google Sheets!`);
+        }
+      });
+    }
+
+    function handleOffline() {
+      setIsOnline(false);
+      showToast('⚠️ Offline Mode • Invoices will be queued locally');
+    }
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial check on load
+    if (typeof navigator !== 'undefined' && navigator.onLine && loadSyncQueue().length > 0) {
+      flushSyncQueue((syncedItem, remaining) => {
+        setPendingSyncCount(remaining);
+      }).then(res => {
+        const remaining = loadSyncQueue().length;
+        setPendingSyncCount(remaining);
+        if (res.syncedCount > 0) {
+          showToast(`📊 Synced ${res.syncedCount} queued bill(s) to Google Sheets!`);
+        }
+      });
+    }
+
+    // Background interval check every 45s if bills are waiting
+    const timer = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine && loadSyncQueue().length > 0) {
+        flushSyncQueue((syncedItem, remaining) => {
+          setPendingSyncCount(remaining);
+        }).then(res => {
+          setPendingSyncCount(loadSyncQueue().length);
+        });
+      }
+    }, 45000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(timer);
+    };
+  }, []);
 
   // Toast banner state
   const [toastMsg, setToastMsg] = useState('');
@@ -293,12 +377,25 @@ export default function App() {
     saveActiveDraft(updatedBill);
     showToast(`✅ Saved ${isFruit ? 'fruit' : 'vegetable'} bill #${recToSave.invoiceNo} for ${recToSave.customerName}`);
 
+    // If device is currently offline, queue immediately without waiting for fetch timeout
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const pending = addToSyncQueue(recToSave, activeCat);
+      setPendingSyncCount(pending);
+      showToast(`💾 Saved locally • ☁️ Queued for Google Sheets (offline)`);
+      return;
+    }
+
     // Sync to Google Sheets in background
     saveInvoiceToSheet(recToSave, activeCat).then(result => {
-      if (result.ok) {
+      if (result && result.ok) {
+        removeFromSyncQueue(recToSave.recordId);
+        setPendingSyncCount(loadSyncQueue().length);
         showToast(`📊 Synced to Google Sheets (${result.tabResult?.action || 'saved'})`);
       } else {
-        console.warn('Sheets sync skipped:', result.error);
+        // Queue for background replay
+        const pending = addToSyncQueue(recToSave, activeCat);
+        setPendingSyncCount(pending);
+        showToast(`💾 Saved locally • ☁️ Queued for sync (${result?.error || 'offline'})`);
       }
     });
   }
@@ -467,6 +564,9 @@ export default function App() {
         setActiveTab={(tab) => navigateTo(tab, 'EDIT')}
         recordsCount={records.length}
         catalogCount={catalog.length + fruitCatalog.length}
+        pendingSyncCount={pendingSyncCount}
+        onRetrySync={handleFlushQueue}
+        isOnline={isOnline}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-4">

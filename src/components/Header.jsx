@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Header({ activeTab, setActiveTab, recordsCount, catalogCount }) {
+export default function Header({
+  activeTab,
+  setActiveTab,
+  recordsCount,
+  catalogCount,
+  pendingSyncCount = 0,
+  onRetrySync,
+  isOnline = true
+}) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
 
@@ -70,6 +78,28 @@ export default function Header({ activeTab, setActiveTab, recordsCount, catalogC
 
         {/* Action Controls & Navigation */}
         <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-0.5 sm:pb-0">
+          {!isOnline && (
+            <span
+              className="px-2 py-1 rounded-lg text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0"
+              title="You are currently offline. Invoices are safely stored and queued."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
+              <span>Offline Mode</span>
+            </span>
+          )}
+
+          {pendingSyncCount > 0 && (
+            <button
+              type="button"
+              onClick={onRetrySync}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/50 shadow-xs flex items-center gap-1.5 shrink-0 transition cursor-pointer"
+              title="Click to retry syncing queued invoices to Google Sheets"
+            >
+              <span>☁️</span>
+              <span>{pendingSyncCount} Pending Sync</span>
+            </button>
+          )}
+
           {deferredPrompt && (
             <button
               type="button"

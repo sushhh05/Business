@@ -16,8 +16,62 @@ export const STORAGE_KEYS = {
   RECORDS: 'biroba_invoice_records_v3',
   CUSTOM_CUSTOMERS: 'biroba_custom_customers_v3',
   ACTIVE_DRAFT: 'biroba_active_bill_draft_v6',
-  LAST_ACTIVE_TAB: 'biroba_last_active_tab_v1'
+  LAST_ACTIVE_TAB: 'biroba_last_active_tab_v1',
+  OFFLINE_SYNC_QUEUE: 'biroba_offline_sync_queue_v1'
 };
+
+export function loadSyncQueue() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.OFFLINE_SYNC_QUEUE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveSyncQueue(queue) {
+  try {
+    if (Array.isArray(queue)) {
+      localStorage.setItem(STORAGE_KEYS.OFFLINE_SYNC_QUEUE, JSON.stringify(queue));
+    }
+  } catch (e) {}
+}
+
+export function addToSyncQueue(rec, catalog) {
+  try {
+    const queue = loadSyncQueue();
+    const existingIdx = queue.findIndex(item => item.rec && item.rec.recordId === rec.recordId);
+    const compactCatalog = catalog ? catalog.map(c => ({ id: c.id, name: c.name, unit: c.unit, mode: c.mode })) : [];
+    const queueEntry = {
+      rec,
+      catalog: compactCatalog,
+      queuedAt: new Date().toISOString(),
+      attempts: existingIdx >= 0 ? (queue[existingIdx].attempts || 0) : 0
+    };
+    if (existingIdx >= 0) {
+      queue[existingIdx] = queueEntry;
+    } else {
+      queue.push(queueEntry);
+    }
+    saveSyncQueue(queue);
+    return queue.length;
+  } catch (e) {
+    return 0;
+  }
+}
+
+export function removeFromSyncQueue(recordId) {
+  try {
+    const queue = loadSyncQueue();
+    const updated = queue.filter(item => item.rec && item.rec.recordId !== recordId);
+    saveSyncQueue(updated);
+    return updated.length;
+  } catch (e) {
+    return 0;
+  }
+}
 
 export function loadActiveDraft(fallback) {
   try {
